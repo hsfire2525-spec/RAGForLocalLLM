@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 実験成果物・キャッシュ
+runs/
+.cache/
+
+# コーパス本体はコミット禁止（README・ロックファイル・合成サンプルのみ許可）
+data/corpus/*
+!data/corpus/README.md
+!data/corpus/corpus.lock.json
+!data/corpus/sample/
+
+# ベクトルインデックス
+*.faiss
+*.index
+
+# 環境
+.env
+.env.local
+
+# OS / エディタ
+.DS_Store
+.idea/
+.vscode/
