@@ -1,0 +1,53 @@
+# ベースライン。IPAガイドライン（PDF）＋ LM Studio。
+#
+# Phase 2 で以下を実装したら有効になる:
+#   - loader: pymupdf   （PDF抽出。現状は text のみ実装済み）
+#   - embedder: sentence_transformers（multilingual-e5。プレフィックス規約は実装側に閉じ込める）
+#   - indexer: faiss
+#
+# それまでは configs/smoke.yaml で疎通を確認する。
+name: baseline
+corpus: data/corpus/ipa_sme_guideline_v4.0.pdf
+
+index:
+  loader: {type: pymupdf, keep_layout: true}
+  chunker: {type: recursive_ja, chunk_size: 512, overlap: 64}
+  embedder:
+    type: sentence_transformers
+    model: intfloat/multilingual-e5-base
+  indexer: {type: faiss, metric: cosine}
+
+query:
+  query_transform: {type: normalize}
+  retriever: {type: dense, top_k: 5}
+  post_retrieval: []
+  prompt:
+    type: template
+    path: prompts/basic_ja.jinja
+    # 4B級・4bit量子化では名目コンテキスト長に達する前に品質が劣化する。
+    # 件数ではなくトークン予算で制御する。
+    context_token_budget: 1536
+    overflow_policy: drop_lowest
+    instruction_placement: system
+  generator:
+    type: openai_compat
+    base_url: http://localhost:1234/v1
+    # LM Studio 側にロード済みのモデルIDを指定する（`rag env -c baseline` で確認可）
+    model: gemma-4-e4b-it-qat
+    temperature: 0.0
+    seed: 42
+    max_tokens: 512
+  post_generation:
+    - {type: parse_citations}
+    - {type: abstain_on_phrase}
+
+eval:
+  dataset: data/gold/qa_v1.jsonl
+  metrics:
+    - recall@5
+    - mrr
+    - gold_quote_resolvability
+    - answer_char_f1
+    - citation_validity
+    - abstention
+    - latency

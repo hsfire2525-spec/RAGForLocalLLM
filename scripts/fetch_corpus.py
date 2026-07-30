@@ -38,8 +38,7 @@ CORPUS = [
         key="ipa_sme_guideline_v4",
         filename="ipa_sme_guideline_v4.0.pdf",
         url=(
-            "https://www.ipa.go.jp/security/guide/sme/"
-            "ug65p90000019cbk-att/sme_guideline_v4.0.pdf"
+            "https://www.ipa.go.jp/security/guide/sme/ug65p90000019cbk-att/sme_guideline_v4.0.pdf"
         ),
         description="中小企業の情報セキュリティ対策ガイドライン 第4.0版（IPA）",
     ),
@@ -85,7 +84,7 @@ def process(entry: CorpusEntry, lock: dict[str, dict[str, str]], write_lock: boo
     if not dest.exists():
         try:
             download(entry.url, dest)
-        except Exception as exc:  # noqa: BLE001 - 原因をそのまま見せる
+        except Exception as exc:
             print(f"  ERROR: ダウンロードに失敗しました: {exc}", file=sys.stderr)
             print(f"  手動で取得し {dest} に配置してください。", file=sys.stderr)
             return False

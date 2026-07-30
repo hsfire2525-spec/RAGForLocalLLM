@@ -1,0 +1,32 @@
+# 疎通確認用。追加依存もLLMも不要で、CIでも動く構成。
+# - 埋め込みは決定的なハッシングトリック（意味的類似性は捉えないため精度実験には使わない）
+# - 生成はLLMを使わない抽出型（検索とリランクだけの下限ベースライン）
+name: smoke
+corpus: data/corpus/sample
+
+index:
+  loader: {type: text}
+  chunker: {type: recursive_ja, chunk_size: 300, overlap: 40}
+  embedder: {type: hashing, dim: 512, ngram: 2}
+  indexer: {type: numpy_flat, metric: cosine}
+
+query:
+  query_transform: {type: normalize}
+  retriever: {type: dense, top_k: 5}
+  post_retrieval:
+    - {type: dedupe, threshold: 0.9}
+    - {type: top_k, k: 3}
+    - {type: reorder_lost_in_middle}
+  prompt:
+    type: template
+    path: prompts/basic_ja.jinja
+    context_token_budget: 1200
+    overflow_policy: drop_lowest
+  generator: {type: extractive, max_sentences: 2}
+  post_generation:
+    - {type: parse_citations}
+    - {type: abstain_on_phrase}
+
+eval:
+  dataset: data/gold/sample_qa.jsonl
+  metrics: [recall@5, mrr, answer_char_f1, citation_validity, abstention, latency]

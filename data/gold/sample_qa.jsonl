@@ -1,0 +1,11 @@
+# サンプル gold データセット（架空の自作コーパス data/corpus/sample/ 用）
+# 本番の評価データセットは Phase 1 で IPA ガイドラインに対して作成する。
+# 形式の詳細は src/ragforlocalllm/eval/dataset.py と docs/design/design.md §6.2 を参照。
+{"qid": "s001", "question": "情報セキュリティ基本方針を承認するのは誰か。", "answer": "経営者", "answer_aliases": ["経営者"], "answer_type": "short", "evidence": [{"quote": "情報セキュリティ基本方針は、経営者が承認する", "section_path": "第2章 体制 > 2.1"}], "answerable": true, "question_type": "responsibility", "tags": ["single-hop"]}
+{"qid": "s002", "question": "パスワードは何文字以上必要か。", "answer": "12文字以上", "answer_aliases": ["12文字", "12"], "answer_type": "numeric", "evidence": [{"quote": "パスワードは12文字以上とし", "section_path": "第3章 技術的対策 > 3.1"}], "answerable": true, "question_type": "numeric", "tags": ["single-hop"]}
+{"qid": "s003", "question": "バックアップは何世代分保管するか。", "answer": "7世代分", "answer_aliases": ["7世代", "7"], "answer_type": "numeric", "evidence": [{"quote": "7世代分を保管する", "section_path": "第3章 技術的対策 > 3.3"}], "answerable": true, "question_type": "numeric", "tags": ["single-hop"]}
+{"qid": "s004", "question": "インシデントを発見した者が最初に行うことは何か。", "answer": "該当機器をネットワークから切り離す", "answer_aliases": ["ネットワークから切り離す", "ネットワーク切断"], "answer_type": "short", "evidence": [{"quote": "該当機器をネットワークから切り離す", "section_path": "第4章 インシデント対応 > 4.1"}], "answerable": true, "question_type": "procedure", "tags": ["single-hop"]}
+{"qid": "s005", "question": "情報セキュリティ教育の実施頻度と、新規入社者への実施期限を答えよ。", "answer": "年1回以上、入社後30日以内", "answer_aliases": ["年1回以上、30日以内"], "answer_type": "list", "evidence": [{"quote": "年1回以上実施する", "section_path": "第5章 教育 > 5.1"}, {"quote": "入社後30日以内に実施する", "section_path": "第5章 教育 > 5.1"}], "answerable": true, "question_type": "enumeration", "tags": ["multi-evidence"]}
+{"qid": "s006", "question": "ソフトウェア更新は公開から何日以内に適用するか。", "answer": "14日以内", "answer_aliases": ["14日", "14"], "answer_type": "numeric", "evidence": [{"quote": "公開から14日以内に適用する", "section_path": "第3章 技術的対策 > 3.2"}], "answerable": true, "question_type": "numeric", "tags": ["single-hop"]}
+{"qid": "s007", "question": "情報セキュリティ責任者の氏名は何か。", "answer": "分かりません", "answer_type": "short", "answerable": false, "question_type": "unanswerable", "tags": ["not-in-corpus"]}
+{"qid": "s008", "question": "本規程における罰則規定の内容は何か。", "answer": "分かりません", "answer_type": "short", "answerable": false, "question_type": "unanswerable", "tags": ["not-in-corpus"]}

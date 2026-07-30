@@ -1,0 +1,21 @@
+# smoke と同じ構成で、生成のみ LM Studio に差し替えたもの。
+# LLMアダプタの疎通確認に使う（精度実験用ではない: 埋め込みは hashing のため）。
+#
+# model は LM Studio 側にロード済みのIDに合わせること。確認方法:
+#   uv run rag env -c smoke_lmstudio
+extends: smoke
+name: smoke_lmstudio
+
+query:
+  generator:
+    type: openai_compat
+    base_url: http://localhost:1234/v1
+    model: gemma-4-12b-it-qat
+    temperature: 0.0
+    seed: 42
+    max_tokens: 256
+  post_generation:
+    - {type: parse_citations}
+    - {type: abstain_on_phrase}
+    # 引用を示せない回答は棄権に置き換える（誤答率を下げる最も安価な手段）
+    - {type: abstain_without_citation}

@@ -269,29 +269,33 @@ Pydantic モデルで定義し、段間の受け渡しを型で固定する。
 class Document(BaseModel):
     doc_id: str
     text: str
-    metadata: dict[str, Any]      # source, title, section_path, page, ...
+    metadata: dict[str, Any]  # source, title, section_path, page, ...
+
 
 class Chunk(BaseModel):
     chunk_id: str
     doc_id: str
     text: str
-    metadata: dict[str, Any]      # page, section_path, is_table, ...
+    metadata: dict[str, Any]  # page, section_path, is_table, ...
     parent_id: str | None = None  # 親子分割・sentence-window 用
+
 
 class ScoredChunk(BaseModel):
     chunk: Chunk
     score: float
     provenance: dict[str, float]  # dense/sparse/rerank の各スコアを保持
 
+
 class QueryState(BaseModel):
     """クエリパイプラインを流れる状態。各段はこれを受け取り、更新して返す。"""
+
     original_query: str
-    queries: list[str]                    # QueryTransform 後（複数化しうる）
+    queries: list[str]  # QueryTransform 後（複数化しうる）
     retrieved: list[ScoredChunk] = []
-    contexts: list[ScoredChunk] = []      # PostRetrieval 後
+    contexts: list[ScoredChunk] = []  # PostRetrieval 後
     prompt: Prompt | None = None
     answer: Answer | None = None
-    trace: list[StageTrace] = []          # 各段の入出力・所要時間・トークン数・ピークメモリ
+    trace: list[StageTrace] = []  # 各段の入出力・所要時間・トークン数・ピークメモリ
 ```
 
 **`trace` を必ず持たせる。** どの段で情報が落ちたのか、どの段が時間を食っているのかを事後に追えないと、原因分析ができない。環境1での実験ではレイテンシの内訳が重要になるため、`StageTrace` に所要時間とピークメモリを含める。
@@ -302,20 +306,27 @@ class QueryState(BaseModel):
 class Chunker(Protocol):
     def split(self, doc: Document) -> list[Chunk]: ...
 
+
 class Embedder(Protocol):
     def embed_queries(self, texts: list[str]) -> np.ndarray: ...
     def embed_passages(self, texts: list[str]) -> np.ndarray: ...
+
     # query/passage を分けることで、e5系のプレフィックス規約を実装側に閉じ込める
+
 
 class Retriever(Protocol):
     def retrieve(self, queries: list[str], top_k: int) -> list[ScoredChunk]: ...
 
+
 class PostRetrievalStep(Protocol):
     def process(self, state: QueryState) -> QueryState: ...
+
     # リランク・圧縮・並べ替えは同一インターフェースにし、リストとして合成する
+
 
 class Generator(Protocol):
     def generate(self, prompt: Prompt, schema: dict | None = None) -> Answer: ...
+
 
 class PostGenerationStep(Protocol):
     def process(self, state: QueryState) -> QueryState: ...
@@ -509,7 +520,7 @@ def resolve_gold(evidence: list[Evidence], chunks: list[Chunk]) -> set[str]:
 **その他の設計上の要点**:
 
 - **`answerable: false` を10〜20%含める。** 棄権性能を測れないと、「何でも答える」モデルが高スコアになる
-- 引用文は**識別に必要な最小限の長さ**に留める（コーパス本体はコミットできない前提を尊重する）。ページ＋見出しのみでのアンカーも選択可能にし、引用文なしでも動く設計にする
+- **引用文は gold に含める（決定済み）。** ただし**識別に必要な最小限の長さ**に留める（コーパス本体はコミットできない前提を尊重する）。ページ・見出しのみでのアンカーも選択可能にし、引用文なしでも動く設計とする（`Evidence` は `quote` / `page` / `section_path` のいずれか1つ以上を要求する）
 - `question_type` / `tags` で層別集計する。「どの質問タイプで効いたか」が手法選択の判断材料になる
 - **初期は30〜50問で十分。** 手作業で作れる規模から始め、質を保つ。表参照と回答不能を必ず含める
 
@@ -740,11 +751,41 @@ RAGForLocalLLM/
 
 ---
 
-## 9. 残る未決事項
+## 9. 実装状況
+
+### Phase 0（基盤）— 完了
+
+| 要素 | 実装 |
+| --- | --- |
+| データ型 | `core/types.py` — `Document` / `Chunk` / `ScoredChunk` / `Prompt` / `Answer` / `StageTrace` / `QueryState` |
+| Protocol | `core/protocols.py` — 11段のインターフェース |
+| レジストリ | `core/registry.py` — 未知の名前・引数を候補提示付きで即座に報告する |
+| 設定 | `core/config.py` — `extends` 差分継承、`index_signature` / `config_hash` |
+| キャッシュ | `core/cache.py` — SQLite（JSON）+ .npy（配列）、名前空間付き |
+| 環境情報 | `core/env.py` — 環境ラベル、GPU、パッケージ版、git、コーパスSHA-256、RSS |
+| トークン計数 | `core/tokens.py` — HFトークナイザ / 文字数推定（**方式を必ず記録**） |
+| パイプライン | `core/pipeline.py` — 段の合成と trace（所要時間・RSS・観測値） |
+| インデックス | `core/indexing.py` — 構築・再利用（署名一致で再利用） |
+| CLI | `cli.py` — `index` / `query` / `env` / `components` / `gold` |
+| gold スキーマ | `eval/dataset.py` — 引用文アンカー、`answerable` 整合性検証 |
+
+疎通確認用に、追加依存もLLMも不要で動く実装群を用意した（`configs/smoke.yaml`）。
+LM Studio 用の Generator アダプタ（`openai_compat`）も実装・動作確認済み。
+
+> **`extractive` ジェネレータ（LLM非依存の下限ベースライン）について**
+> 検索とリランクだけでどこまで到達できるかを測る参照点。文字bi-gram の
+> Dice 係数で文を選び、閾値を下回れば棄権する。**語彙的に無関係な質問には
+> 棄権できるが、コーパスが話題に触れているだけで答えを含まない質問
+> （例:「責任者の氏名は何か」）には誤答する。** これは語彙一致手法の
+> 原理的な限界であり、NLI による根拠検証（Phase 3）が必要な理由を示す
+> 具体例として記録しておく。
+
+### 残る未決事項
 
 | 項目 | 決定に必要なこと |
 | --- | --- |
-| gold の引用文の扱い | 引用文をgoldに含めるか（識別に必要な最小限）、ページ＋見出しのみでアンカーするか。前者のほうが解決精度と診断能力が高い |
+| **対象4Bモデルの入手** | `gemma-4-e4b-it-qat` と `agents-a1-4b-q4_k_m` は現行の検証機の LM Studio に未ダウンロード。Phase 2 のベースライン測定前に必要 |
+| 検証機と設計上の2環境の対応 | 現行の検証機（32コア / 124GB / AMD dGPU）は設計書の環境1・環境2のどちらとも異なる。環境ラベルの定義を実機に合わせて見直すか、3環境目として扱うか |
 | 日本語NLIモデルの選定 | 入手可能なモデルの精度と、環境1でのレイテンシの実測が必要 |
 | リランカーの具体的なモデル | 日本語対応・小型（環境1向け）の候補を実測で絞る |
 | gold QA の作成担当と分量 | 30〜50問の作成は人手作業。誰がどの範囲を作るか |
