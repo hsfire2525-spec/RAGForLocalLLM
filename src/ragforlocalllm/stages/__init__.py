@@ -13,6 +13,7 @@ from ragforlocalllm.stages.embedder import hashing as _embedder_hashing
 from ragforlocalllm.stages.generator import extractive as _generator_extractive
 from ragforlocalllm.stages.generator import openai_compat as _generator_openai_compat
 from ragforlocalllm.stages.indexer import numpy_flat as _indexer_numpy_flat
+from ragforlocalllm.stages.loader import pdf as _loader_pdf
 from ragforlocalllm.stages.loader import text as _loader_text
 from ragforlocalllm.stages.post_generation import checks as _post_generation_checks
 from ragforlocalllm.stages.post_retrieval import basic as _post_retrieval_basic

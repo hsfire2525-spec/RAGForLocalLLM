@@ -1,16 +1,29 @@
 # ベースライン。IPAガイドライン（PDF）＋ LM Studio。
 #
 # Phase 2 で以下を実装したら有効になる:
-#   - loader: pymupdf   （PDF抽出。現状は text のみ実装済み）
 #   - embedder: sentence_transformers（multilingual-e5。プレフィックス規約は実装側に閉じ込める）
 #   - indexer: faiss
+#   - chunker: recursive_ja
 #
 # それまでは configs/smoke.yaml で疎通を確認する。
 name: baseline
 corpus: data/corpus/ipa_sme_guideline_v4.0.pdf
 
 index:
-  loader: {type: pymupdf, keep_layout: true}
+  # 既定値は汎用。ここでの上書きはすべて当コーパスの実測に基づく
+  # （観察の詳細は stages/loader/pdf.py の冒頭と docs/design/design.md §9）。
+  loader:
+    type: pymupdf
+    # 表紙(1)・白紙(2)・目次(3-4)。目次はリーダー線と見出しの重複で
+    # 検索ノイズにしかならない。
+    skip_pages: [1, 2, 3, 4]
+    # フォントの ToUnicode 誤りで箇条書き記号が「●Ө」として抽出される
+    replacements: {"●Ө": "・"}
+    # 図中ラベルが 3.4〜4.4pt で本文行に割り込み、文を分断する。
+    # 本文は 8.5pt 以上なので 5.0 で切れる。
+    min_font_size: 5.0
+    # 「コラム」だけの見出しスタブを落とす（本文を持たない装飾ラベル）
+    min_section_chars: 16
   chunker: {type: recursive_ja, chunk_size: 512, overlap: 64}
   embedder:
     type: sentence_transformers

@@ -80,6 +80,7 @@ uv run mypy src
 ## ステータス
 
 **Phase 0（基盤）完了。** 設定YAMLでパイプラインが通り、trace と環境情報が記録される。
+PDF Loader（`pymupdf` / `pypdf`）は評価用コーパスに対して実装・実測済み（設計方針 §9）。
 次は Phase 1（評価基盤: gold引用の解決器、検索・生成メトリクス、人手抽出検査CLI、
 `rag gold draft` / `rag footprint`）。
 実装フェーズの詳細は設計方針 §8 を参照。
