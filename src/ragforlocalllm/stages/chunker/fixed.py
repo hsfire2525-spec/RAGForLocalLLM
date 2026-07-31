@@ -27,11 +27,20 @@ JA_SEPARATORS: tuple[str, ...] = (
 
 
 def _make_chunk(doc: Document, index: int, text: str, start: int) -> Chunk:
+    """チャンクを作る。**文書のメタデータを必ず引き継ぐ。**
+
+    ``page`` / ``section_path`` が引き継がれないと、gold のページ・節
+    アンカーが一切解決できず、``add_section_path`` も出典表示も効かない。
+    節が複数ページにまたがる場合、チャンク単体では正確なページを特定
+    できないため、節の ``page_start``〜``page_end`` をそのまま持たせる
+    （解決器は範囲で判定する）。
+    """
     return Chunk(
         chunk_id=f"{doc.doc_id}#c{index:04d}",
         doc_id=doc.doc_id,
         text=text,
         metadata={
+            **doc.metadata,
             "char_start": start,
             "char_end": start + len(text),
             "n_chars": len(text),

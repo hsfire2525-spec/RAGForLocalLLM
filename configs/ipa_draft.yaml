@@ -1,0 +1,44 @@
+# IPAガイドラインを追加依存なしで扱う設定。
+#
+# **用途は gold QA の起草と引用文の検証**（`rag gold draft` / `rag gold check`）。
+# これらはチャンク本文さえあれば成立し、埋め込み器の質を問わない。
+# Phase 2 で sentence_transformers / faiss が入るまでの繋ぎとして、
+# baseline.yaml と同じ Loader・Chunker 設定を保ったまま、埋め込みと
+# インデックスだけ依存の要らない実装に差し替えてある。
+#
+# 生成器も LLM 非依存の extractive にしてあるので、LM Studio を
+# 起動しなくても `rag eval -c ipa_draft` で**語彙一致のみの下限**を測れる。
+name: ipa_draft
+corpus: data/corpus/ipa_sme_guideline_v4.0.pdf
+
+index:
+  # baseline.yaml と同一。ここを揃えていないと、起草時に検証した引用文が
+  # 本番の設定で解決しなくなる。
+  loader:
+    type: pymupdf
+    skip_pages: [1, 2, 3, 4]
+    replacements: {"●Ө": "・"}
+    min_font_size: 5.0
+    min_section_chars: 16
+  chunker: {type: recursive_ja, chunk_size: 512, overlap: 64}
+  embedder: {type: hashing, dim: 1024}
+  indexer: {type: numpy_flat, metric: cosine}
+
+query:
+  query_transform: {type: normalize}
+  retriever: {type: dense, top_k: 5}
+  post_retrieval:
+    - {type: dedupe}
+    - {type: add_section_path}
+  prompt:
+    type: template
+    path: prompts/basic_ja.jinja
+    context_token_budget: 1536
+    overflow_policy: drop_lowest
+  generator: {type: extractive}
+  post_generation:
+    - {type: parse_citations}
+    - {type: abstain_on_phrase}
+
+eval:
+  dataset: data/gold/qa_v1.jsonl

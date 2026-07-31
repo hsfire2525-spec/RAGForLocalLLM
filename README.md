@@ -34,7 +34,14 @@ uv run rag index -c smoke
 uv run rag query "情報セキュリティ基本方針を承認するのは誰か。" -c smoke --contexts
 
 # 評価データセットの検証
-uv run rag gold data/gold/sample_qa.jsonl
+uv run rag gold check data/gold/sample_qa.jsonl
+
+# 評価（runs/ にランレコードが出る）
+uv run rag eval -c smoke
+
+# ランの一覧と、信頼区間つきの比較
+uv run rag runs
+uv run rag report <ラン名A> <ラン名B>
 
 # ランレコードに記録される環境情報
 uv run rag env
@@ -58,6 +65,26 @@ python scripts/fetch_corpus.py --write-lock   # 初回
 python scripts/fetch_corpus.py               # 以降（SHA-256を検証）
 ```
 
+### 評価データセット（gold QA）の作り方
+
+`configs/ipa_draft.yaml` は追加依存なしで実コーパスを扱える設定で、
+起草と検証に使う。**本番設定（`baseline.yaml`）と Loader・Chunker を
+揃えてある**ので、ここで検証した引用文はそのまま本番でも解決する。
+
+```bash
+# 1. チャンクを層別に抽出して下書きを作る（question / answer は TODO）
+uv run rag gold draft -c ipa_draft --n 40 -o data/gold/qa_v1.jsonl
+
+# 2. 人手で question / answer / question_type を記入する
+#    （配分と方針は docs/design/design.md §10.4）
+
+# 3. 引用文が実際の抽出テキストに解決するか検証する（凍結前に必須）
+uv run rag gold check data/gold/qa_v1.jsonl -c ipa_draft
+```
+
+手打ちの引用文が抽出結果と一致しないのが最大の失敗要因で、これは
+検索メトリクスを静かに壊す。3 を通してから凍結すること。
+
 ## 開発
 
 ```bash
@@ -79,8 +106,13 @@ uv run mypy src
 
 ## ステータス
 
-**Phase 0（基盤）完了。** 設定YAMLでパイプラインが通り、trace と環境情報が記録される。
-PDF Loader（`pymupdf` / `pypdf`）は評価用コーパスに対して実装・実測済み（設計方針 §9）。
-次は Phase 1（評価基盤: gold引用の解決器、検索・生成メトリクス、人手抽出検査CLI、
-`rag gold draft` / `rag footprint`）。
-実装フェーズの詳細は設計方針 §8 を参照。
+**Phase 0（基盤）・Phase 1（評価基盤）完了。**
+
+- 設定YAMLでパイプラインが通り、trace と環境情報が記録される
+- PDF Loader（`pymupdf` / `pypdf`）を評価用コーパスに対して実装・実測済み（設計方針 §9）
+- gold引用 → チャンクID の解決器、検索・生成・コストの各メトリクス、
+  ランレコード、**信頼区間つき**比較レポート、人手抽出検査CLI が動く
+
+**残るのは gold QA 40問の作成**（上記「評価データセットの作り方」）。
+これが凍結できれば Phase 2（multilingual-e5 + FAISS のベースライン構築と
+環境間の一致率確認）に進める。実装フェーズの詳細は設計方針 §8 を参照。

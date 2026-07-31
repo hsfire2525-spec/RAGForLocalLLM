@@ -139,16 +139,46 @@ def corpus_info(path: Path) -> dict[str, Any]:
 
     コーパス本体をコミットできないため、「どの版のどのファイルに
     対する結果か」はハッシュでのみ特定できる。
+
+    コーパスは単一ファイル（PDF）とディレクトリ（テスト用の合成
+    コーパス）の両方がありうるため、どちらでも同じ形の情報を返す。
     """
     path = Path(path)
     if not path.exists():
         return {"path": str(path), "exists": False}
+    if path.is_dir():
+        files = sorted(p for p in path.rglob("*") if p.is_file())
+        return {
+            "path": str(path),
+            "exists": True,
+            "kind": "directory",
+            "n_files": len(files),
+            "size_bytes": sum(p.stat().st_size for p in files),
+            "sha256": corpus_signature(path),
+        }
     return {
         "path": str(path),
         "exists": True,
+        "kind": "file",
         "size_bytes": path.stat().st_size,
         "sha256": sha256_of(path),
     }
+
+
+def corpus_signature(path: Path) -> str:
+    """ファイル・ディレクトリのどちらでも使えるコーパスの同一性ハッシュ。
+
+    インデックス署名とランレコードで**同じ値**を使う必要がある。
+    別々に算出すると、同じコーパスなのに再利用判定と記録が食い違う。
+    """
+    path = Path(path)
+    if path.is_file():
+        return sha256_of(path)
+    digest = hashlib.sha256()
+    for file in sorted(p for p in path.rglob("*") if p.is_file()):
+        digest.update(str(file.relative_to(path)).encode("utf-8"))
+        digest.update(sha256_of(file).encode("ascii"))
+    return digest.hexdigest()
 
 
 def sha256_of(path: Path) -> str:

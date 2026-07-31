@@ -18,7 +18,7 @@ import numpy as np
 from ragforlocalllm.core import registry
 from ragforlocalllm.core.cache import Cache, content_key
 from ragforlocalllm.core.config import ExperimentConfig
-from ragforlocalllm.core.env import sha256_of
+from ragforlocalllm.core.env import corpus_signature
 from ragforlocalllm.core.types import Chunk, Document
 
 DEFAULT_INDEX_ROOT = Path(".cache/indexes")
@@ -54,7 +54,7 @@ def build_index(
             "（コーパスはリポジトリにコミットされません）"
         )
 
-    corpus_sha = sha256_of(corpus) if corpus.is_file() else _dir_signature(corpus)
+    corpus_sha = corpus_signature(corpus)
     signature = config.index_signature(corpus_sha)
     directory = index_directory(signature, root)
 
@@ -140,11 +140,3 @@ def _embed_passages(
             "embeddings", content_key("passages", embedder_spec, [c.text for c in chunks]), vectors
         )
     return vectors
-
-
-def _dir_signature(directory: Path) -> str:
-    """ディレクトリコーパスの同一性（ファイル名 + 各ファイルのハッシュ）。"""
-    parts = []
-    for path in sorted(p for p in directory.rglob("*") if p.is_file()):
-        parts.append((str(path.relative_to(directory)), sha256_of(path)))
-    return content_key("dir", parts)[:64]

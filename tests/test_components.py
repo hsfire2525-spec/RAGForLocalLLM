@@ -66,6 +66,40 @@ def test_empty_document_yields_no_chunks() -> None:
     assert FixedChunker().split(empty) == []
 
 
+def test_chunks_inherit_document_metadata() -> None:
+    """**page / section_path が落ちると gold のアンカーが解決できない。**
+
+    節は複数ページにまたがるため、チャンク単体では正確なページを
+    特定できない。範囲（page_start〜page_end）をそのまま持たせ、
+    解決器が範囲で判定する。
+    """
+    doc = Document(
+        doc_id="d1",
+        text="あ" * 900,
+        metadata={
+            "page": 23,
+            "page_start": 23,
+            "page_end": 25,
+            "section_path": "第1 部 > 2 経営者が負う責任",
+            "source": "x.pdf",
+        },
+    )
+    chunkers = (
+        FixedChunker(chunk_size=300, overlap=50),
+        RecursiveJapaneseChunker(chunk_size=300, overlap=50),
+    )
+    for chunker in chunkers:
+        chunks = chunker.split(doc)
+        assert len(chunks) > 1
+        for chunk in chunks:
+            assert chunk.page == 23
+            assert chunk.section_path == "第1 部 > 2 経営者が負う責任"
+            assert chunk.metadata["page_end"] == 25
+            assert chunk.metadata["source"] == "x.pdf"
+            # チャンク固有のキーは文書側の値に上書きされない
+            assert chunk.metadata["n_chars"] == len(chunk.text)
+
+
 # ----------------------------------------------------------------------
 # Embedder / Index
 # ----------------------------------------------------------------------
