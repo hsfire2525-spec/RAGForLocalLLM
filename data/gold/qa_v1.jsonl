@@ -1,0 +1,70 @@
+# 評価データセット qa_v1 — IPA「中小企業の情報セキュリティ対策ガイドライン 第4.0版」
+#
+# 作成手順は docs/design/design.md §10.4。候補を機械生成し、人手で確定し、
+# 機械で検証する。**凍結前に必ず `rag gold check data/gold/qa_v1.jsonl -c baseline`**。
+#
+# 引用文は識別に必要な最小限に留めている（コーパス本体はコミットしない前提）。
+# tags の意味:
+#   lexical-gap  … 質問文とコーパスの語彙が重ならない（意味検索の効果を測る）
+#   topic-match  … 回答不能だが話題は一致する（語彙一致では棄権できない型）
+#
+# --- numeric (8) 数値・件数。機械採点が最も確実 -----------------------------
+{"qid": "q001", "question": "情報セキュリティ自社診断の設問は何項目か。", "answer": "25", "answer_aliases": ["25項目", "２５"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 24, "quote": "自社診断は、表4に示す25項目の設問に答えるだけで"}], "answerable": true}
+{"qid": "q002", "question": "自社診断で「実施している」と回答した場合の点数は何点か。", "answer": "4", "answer_aliases": ["4点"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 24, "quote": "「実施している 4点」"}], "answerable": true}
+{"qid": "q003", "question": "経営者が認識すべき原則はいくつあるか。", "answer": "3", "answer_aliases": ["3つ", "３原則"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 16, "quote": "経営者は、以下の３原則を認識し"}], "answerable": true}
+{"qid": "q004", "question": "経営者が実行すべき取組は何項目か。", "answer": "7", "answer_aliases": ["7項目", "７項目"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 18, "quote": "以下の重要７項目の取組について"}], "answerable": true}
+{"qid": "q005", "question": "クラウドサービス安全利用の手引きに付いているチェックシートは何項目か。", "answer": "15", "answer_aliases": ["15項目"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 7, "quote": "15 項目のチェックシートが付いています。"}], "answerable": true}
+{"qid": "q006", "question": "本ガイドラインの本編はいくつの部で構成されるか。", "answer": "2", "answer_aliases": ["2部", "２部"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 7, "quote": "本編２部と付録により構成されます"}], "answerable": true}
+{"qid": "q007", "question": "多要素認証では最低いくつの要素を用いるか。", "answer": "2", "answer_aliases": ["2つ", "２つ以上"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 52, "quote": "２つ以上の要素を用いて行う技術"}], "answerable": true}
+{"qid": "q008", "question": "情報セキュリティ対策を怠ることで企業が被る主な不利益は何点に要約されているか。", "answer": "4", "answer_aliases": ["4点", "４点"], "answer_type": "numeric", "question_type": "numeric", "evidence": [{"page": 12, "quote": "次に挙げる４点に"}], "answerable": true}
+#
+# --- enumeration (5) 列挙。集合F1で採点 -------------------------------------
+{"qid": "q009", "question": "企業が被る主な不利益として挙げられている4つは何か。", "answer": "金銭の損失、顧客の喪失、事業の停止、従業員への影響", "answer_type": "list", "question_type": "enumeration", "evidence": [{"page": 12, "quote": "●金銭の損失　●顧客の喪失　●事業の停止　●従業員への影響"}], "answerable": true}
+{"qid": "q010", "question": "不正競争防止法で営業秘密として保護されるための3要件は何か。", "answer": "秘密管理性、有用性、非公知性", "answer_type": "list", "question_type": "enumeration", "evidence": [{"page": 15, "quote": "①秘密として管理されていること（秘密管理性）"}], "answerable": true}
+{"qid": "q011", "question": "情報セキュリティガバナンスの経営陣が取り組むべきサイクルを構成する3つの活動は何か。", "answer": "方向付け、モニタリング、評価", "answer_type": "list", "question_type": "enumeration", "evidence": [{"page": 16, "quote": "「方向付け」を行い、対策の進捗"}], "answerable": true}
+{"qid": "q012", "question": "多要素認証における3つの要素とは何か。", "answer": "知っているもの、持っているもの、本人自身に関するもの", "answer_type": "list", "question_type": "enumeration", "evidence": [{"page": 52, "quote": "３つの要素（①知っているもの②持っているも"}], "answerable": true}
+{"qid": "q013", "question": "自社診断の採点区分をすべて挙げよ。", "answer": "実施している、一部実施している、実施していない、わからない", "answer_type": "list", "question_type": "enumeration", "evidence": [{"page": 24, "quote": "「実施していない 0点」「わからない -１点」"}], "answerable": true}
+#
+# --- definition (5) 用語定義 -------------------------------------------------
+{"qid": "q014", "question": "善管注意義務とは何の略か。", "answer": "善良な管理者の注意義務", "answer_type": "short", "question_type": "definition", "evidence": [{"page": 14, "quote": "善管注意義務　善良な管理者の注意義務の略"}], "answerable": true}
+{"qid": "q015", "question": "情報セキュリティガバナンスとはどのようなものか。", "answer": "経営者が企業戦略として情報セキュリティ向上に取り組むための枠組み", "answer_type": "short", "question_type": "definition", "evidence": [{"page": 16, "quote": "経営者が企業戦略として情報セキュリティ向上に取り組むため"}], "answerable": true}
+{"qid": "q016", "question": "個人情報取扱事業者とはどのような者か。", "answer": "個人情報データベース等を事業の用に供している者", "answer_type": "short", "question_type": "definition", "evidence": [{"page": 15, "quote": "個人情報データベース等を事業の用に供し"}], "answerable": true}
+{"qid": "q017", "question": "多要素認証とはどのような技術か。", "answer": "利用者認証を3つの要素のうち2つ以上の要素を用いて行う技術", "answer_type": "short", "question_type": "definition", "evidence": [{"page": 52, "quote": "サービス利用時に行う利用者認証を、３つの要素"}], "answerable": true}
+{"qid": "q018", "question": "個人情報保護法はどのような法律か。", "answer": "企業や団体が個人情報を適切に取り扱ったうえで有効に活用できるよう共通のルールを定めた法律", "answer_type": "short", "question_type": "definition", "evidence": [{"page": 15, "quote": "有効に活用できるよう共通のルールを定めた法律です"}], "answerable": true}
+#
+# --- table (4) 表の参照。抽出品質の診断に有用 --------------------------------
+{"qid": "q019", "question": "表4は何を示した表か。", "answer": "自社診断のための25項目", "answer_type": "short", "question_type": "table", "evidence": [{"page": 24, "quote": "【表４】自社診断のための25 項目"}], "answerable": true}
+{"qid": "q020", "question": "表1は何を示した表か。", "answer": "本ガイドラインの全体構成", "answer_type": "short", "question_type": "table", "evidence": [{"page": 7, "quote": "【表１】本ガイドラインの全体構成"}], "answerable": true}
+{"qid": "q021", "question": "自社診断の1番目の診断項目は何を確認するものか。", "answer": "情報機器のOSやソフトウェアを常に最新の状態にしているか", "answer_type": "short", "question_type": "table", "evidence": [{"page": 24, "quote": "情報機器のOS やソフトウェアは常に最新の状態にしていますか"}], "answerable": true}
+{"qid": "q022", "question": "自社診断でパスワードについて問われている内容は何か。", "answer": "破られにくい「長く」「複雑な」パスワードを設定しているか", "answer_type": "short", "question_type": "table", "evidence": [{"page": 24, "quote": "パスワードは破られにくい「長く」「複雑な」パスワードを設定していますか"}], "answerable": true}
+#
+# --- responsibility (4) 責任・体制 -------------------------------------------
+{"qid": "q023", "question": "取締役が民法・会社法により負うとされている義務は何か。", "answer": "善管注意義務", "answer_aliases": ["善良な管理者の注意義務"], "answer_type": "short", "question_type": "responsibility", "evidence": [{"page": 14, "quote": "ベストを尽くして経営に当たる義務（善管注意義務"}], "answerable": true}
+{"qid": "q024", "question": "自社診断の診断編に記入するのは誰か。", "answer": "経営者または情報セキュリティの担当や部門長など実施状況がわかる人", "answer_type": "short", "question_type": "responsibility", "evidence": [{"page": 24, "quote": "経営者または情報セキュリティの担当や部門長など実施状況がわかる人"}], "answerable": true}
+{"qid": "q025", "question": "委託先の不備で情報が漏えいした場合、誰が管理責任を問われるか。", "answer": "委託元", "answer_aliases": ["委託元としての管理責任", "委託した側"], "answer_type": "short", "question_type": "responsibility", "evidence": [{"page": 17, "quote": "委託元としての管理責任を問われる"}], "answerable": true}
+{"qid": "q026", "question": "情報セキュリティ対策を進める上でリーダーシップを発揮すべきなのは誰か。", "answer": "経営者", "answer_type": "short", "question_type": "responsibility", "evidence": [{"page": 16, "quote": "情報セキュリティ対策は経営者のリーダーシップで進める"}], "answerable": true}
+#
+# --- reference (3) 参照解決 --------------------------------------------------
+{"qid": "q027", "question": "付録2は何のサンプルか。", "answer": "情報セキュリティ基本方針", "answer_type": "short", "question_type": "reference", "evidence": [{"page": 7, "quote": "組織としての情報セキュリティに対する基本方針書のサン"}], "answerable": true}
+{"qid": "q028", "question": "付録6はどのようなもののサンプルか。", "answer": "資産管理台帳", "answer_type": "short", "question_type": "reference", "evidence": [{"page": 7, "quote": "ハードウェアを一覧化したもののサンプルです。"}], "answerable": true}
+{"qid": "q029", "question": "インシデント対応の手引きは付録の何番か。", "answer": "8", "answer_aliases": ["付録8", "付録８"], "answer_type": "numeric", "question_type": "reference", "evidence": [{"page": 7, "quote": "インシデント対応の手引き"}], "answerable": true}
+#
+# --- procedure (3) 手順。長文回答のため人手検査で扱う ------------------------
+{"qid": "q030", "question": "リスク値はどのように算定するか。", "answer": "重要度と被害発生可能性の2つの数値の掛け算で算定する", "answer_type": "long", "question_type": "procedure", "evidence": [{"page": 47, "quote": "「重要度」と「被害発生可能性」の２つの数値の掛け算で行います"}], "answerable": true}
+{"qid": "q031", "question": "被害発生可能性はどのように算出するか。", "answer": "脅威の起こりやすさと脆弱性のつけ込みやすさの2つの数値から算出する", "answer_type": "long", "question_type": "procedure", "evidence": [{"page": 47, "quote": "「脆弱性のつけ込みやすさ」の２つの数値"}], "answerable": true}
+{"qid": "q032", "question": "事業所や部署が多く一人で自社診断に記入できない場合はどうすればよいか。", "answer": "事業所や部署ごとに記入し、責任者・担当者が集計する", "answer_type": "long", "question_type": "procedure", "evidence": [{"page": 24, "quote": "や部署ごとに記入し、責任者・担当者が集計します"}], "answerable": true}
+#
+# --- lexical-gap (2) 語彙が重ならない言い換え。意味検索の効果を測る ----------
+{"qid": "q033", "question": "身代金要求型ウイルスなどでデータを失う事態に備え、日頃から何をしておくべきか。", "answer": "定期的にバックアップを取得しておく", "answer_aliases": ["バックアップの取得", "バックアップ"], "answer_type": "short", "question_type": "procedure", "evidence": [{"page": 24, "quote": "定期的にバックアップを取得し"}], "answerable": true, "tags": ["lexical-gap"]}
+{"qid": "q034", "question": "外注先の安全管理体制について、発注側はどう向き合うべきか。", "answer": "委託先がどのような情報セキュリティ対策を行っているか考慮する", "answer_type": "short", "question_type": "responsibility", "evidence": [{"page": 17, "quote": "がどのような情報セキュリティ対策を行っているか考慮する必要があります"}], "answerable": true, "tags": ["lexical-gap"]}
+#
+# --- unanswerable (8) 20%。うち半数は topic-match 型 -------------------------
+# topic-match: 話題はコーパスにあるが答えは書かれていない。語彙一致では棄権できない。
+{"qid": "q035", "question": "情報セキュリティ自社診断の業種別の平均点は何点か。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false, "tags": ["topic-match"]}
+{"qid": "q036", "question": "SCS評価制度の★5を取得するための要件は何か。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false, "tags": ["topic-match"]}
+{"qid": "q037", "question": "多要素認証を導入する場合の費用の目安はいくらか。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false, "tags": ["topic-match"]}
+{"qid": "q038", "question": "情報セキュリティ基本方針の承認に要する標準的な日数は何日か。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false, "tags": ["topic-match"]}
+{"qid": "q039", "question": "本ガイドラインが推奨するウイルス対策ソフトの製品名は何か。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false, "tags": ["topic-match"]}
+{"qid": "q040", "question": "本ガイドライン第5.0版の公開予定日はいつか。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false}
+{"qid": "q041", "question": "中小企業のサイバー攻撃被害の年間総額は何円か。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false}
+{"qid": "q042", "question": "IPAの情報セキュリティ安心相談窓口の電話番号は何番か。", "answer": "分かりません", "answer_type": "short", "question_type": "unanswerable", "answerable": false}
