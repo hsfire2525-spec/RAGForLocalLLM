@@ -76,6 +76,24 @@ def ndcg_at_k(resolution: GoldResolution, retrieved: Sequence[str], k: int) -> f
     return dcg / idcg if idcg else 0.0
 
 
+def context_hit(resolution: GoldResolution, contexts: Sequence[str]) -> float:
+    """根拠がプロンプトまで生き残ったか。
+
+    **hit@k との差が、コンテキスト予算で捨てられた分。** 検索が正解を
+    取れていても、予算に収まらず落ちていれば当然答えられない。
+    この2つを分けて測らないと、「検索は当たっているのに答えられない」
+    という誤った結論に至る。
+
+    実測では 42問中38問で予算により計69チャンクが落ちており、
+    ハイブリッド検索の改善が正答率に十分つながらない原因になっていた
+    （docs/design/design.md §9 Phase 3-1）。
+    """
+    gold = resolution.chunk_ids
+    if not gold:
+        return float("nan")
+    return 1.0 if gold & set(contexts) else 0.0
+
+
 def context_precision(resolution: GoldResolution, contexts: Sequence[str]) -> float:
     """プロンプトに入れたコンテキストのうち、根拠だったものの割合。
 

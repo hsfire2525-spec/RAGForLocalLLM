@@ -17,6 +17,7 @@ from ragforlocalllm.eval.metrics.generation import (
     judge_citations,
 )
 from ragforlocalllm.eval.metrics.retrieval import (
+    context_hit,
     context_precision,
     evidence_recall_at_k,
     hit_at_k,
@@ -41,6 +42,7 @@ __all__ = [
     "aggregate_outcomes",
     "bootstrap_mean",
     "bootstrap_paired_diff",
+    "context_hit",
     "context_precision",
     "evidence_recall_at_k",
     "hit_at_k",

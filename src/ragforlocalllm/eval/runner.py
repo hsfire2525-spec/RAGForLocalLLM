@@ -32,6 +32,7 @@ from ragforlocalllm.eval.metrics import (
     CostAccumulator,
     aggregate_outcomes,
     bootstrap_mean,
+    context_hit,
     context_precision,
     evidence_recall_at_k,
     hit_at_k,
@@ -188,6 +189,8 @@ def _evaluate_item(
             retrieval[f"ndcg@{k}"] = ndcg_at_k(resolution, retrieved_ids, k)
         retrieval["mrr"] = reciprocal_rank(resolution, retrieved_ids)
         retrieval["context_precision"] = context_precision(resolution, context_ids)
+        # 検索できた根拠がプロンプトまで生き残ったか。hit@k との差が予算の損失。
+        retrieval["context_hit"] = context_hit(resolution, context_ids)
 
     return ItemResult(item, state, judgment, citation_judgment, resolution, retrieval)
 
@@ -243,7 +246,7 @@ def _aggregate(
     retrieval: dict[str, Any] = {"n_measured": len(measured)}
     if measured:
         keys = [f"{prefix}@{k}" for k in k_values for prefix in ("hit", "recall", "ndcg")]
-        for key in [*keys, "mrr", "context_precision"]:
+        for key in [*keys, "mrr", "context_hit", "context_precision"]:
             values = [r.retrieval[key] for r in measured if key in r.retrieval]
             retrieval[key] = round(mean([v for v in values if v == v]), 4) if values else None
         primary = f"hit@{max(k_values)}"

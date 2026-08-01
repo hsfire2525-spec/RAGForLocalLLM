@@ -31,6 +31,25 @@ from ragforlocalllm.eval.record import RunRecord
 
 CORRECT_OUTCOMES = frozenset({"correct", "correct_abstention"})
 
+_LOWER_IS_BETTER = frozenset({"error_rate", "latency_ms"})
+_NEUTRAL = frozenset({"abstention_rate"})
+
+
+def polarity(metric: str) -> int:
+    """指標の向き。1=大きいほど良い、-1=小さいほど良い、0=文脈依存。
+
+    **棄権率を「小さいほど良い」と決めつけてはいけない。** 棄権は
+    誤答を避けるための機能であり、回答不能な質問が多い gold では
+    高いほうが正しい。逆に取りこぼしが多ければ下げたい。
+    どちらかは gold の構成と目的次第なので、方向だけ示して
+    良し悪しの判断は人に委ねる。
+    """
+    if metric in _NEUTRAL:
+        return 0
+    if metric in _LOWER_IS_BETTER:
+        return -1
+    return 1
+
 
 @dataclass
 class RunSeries:
@@ -106,7 +125,12 @@ class MetricRow:
             return "基準"
         if not self.significant:
             return "有意差なし"
-        return "改善" if self.diff.point > 0 else "悪化"
+        direction = polarity(self.metric)
+        if direction == 0:
+            # 良し悪しが文脈依存の指標。方向だけ示して判断は人に委ねる。
+            return "増加" if self.diff.point > 0 else "減少"
+        improved = (self.diff.point > 0) == (direction > 0)
+        return "改善" if improved else "悪化"
 
 
 DEFAULT_METRICS = ("accuracy", "error_rate", "abstention_rate", "char_f1")

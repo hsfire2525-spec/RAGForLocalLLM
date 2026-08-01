@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -42,14 +43,49 @@ def mean(values: Sequence[float]) -> float:
     return sum(values) / len(values) if values else float("nan")
 
 
+def _z_for(level: float) -> float:
+    """よく使う信頼水準の正規分位点。scipy を持ち込むほどではない。"""
+    return {0.90: 1.6449, 0.95: 1.9600, 0.99: 2.5758}.get(round(level, 2), 1.9600)
+
+
+def wilson_interval(successes: int, n: int, *, level: float = 0.95) -> Interval:
+    """二値データの Wilson スコア信頼区間。
+
+    **全問正解のときブートストラップは壊れる。** 標本に分散が無いため
+    どのリサンプルも同じ平均になり、区間が [1.0, 1.0] という
+    「絶対に 1.0」という主張になってしまう。42問中42問正解でも、
+    真の正答率が 0.92 である可能性は十分にある。
+
+    Wilson 区間は境界（0 や 1）でも縮退せず、n が小さいときの
+    非対称性も正しく扱う。二値の指標ではこちらを使う。
+    """
+    if n <= 0:
+        return Interval(float("nan"), float("nan"), float("nan"), level)
+    z = _z_for(level)
+    p = successes / n
+    denominator = 1.0 + z * z / n
+    center = (p + z * z / (2 * n)) / denominator
+    half = (z / denominator) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return Interval(p, max(0.0, center - half), min(1.0, center + half), level)
+
+
 def bootstrap_mean(
     values: Sequence[float],
     *,
     level: float = 0.95,
     resamples: int = DEFAULT_RESAMPLES,
     seed: int = DEFAULT_SEED,
+    proportion: bool | None = None,
 ) -> Interval:
-    """平均のブートストラップ信頼区間（パーセンタイル法）。
+    """平均の信頼区間。
+
+    二値（0/1）の系列は Wilson 区間、それ以外はブートストラップ。
+    正答率や hit@k は二値であり、**全問正解・全問不正解のときに
+    ブートストラップが縮退する**ため、そこだけ別扱いにしている。
+
+    ``proportion`` を明示すると自動判定を上書きできる。**差の系列には
+    使ってはいけない。** 差が偶然すべて 0 でも「割合 0」ではなく
+    「差が無い」であり、Wilson の非対称な区間は意味を持たない。
 
     ``seed`` を固定しているのは、同じ入力から同じ区間が出ないと
     実験ログの再現性が崩れるため。
@@ -60,6 +96,9 @@ def bootstrap_mean(
     point = mean(clean)
     if len(clean) == 1:
         return Interval(point, point, point, level)
+    is_proportion = proportion if proportion is not None else all(v in (0.0, 1.0) for v in clean)
+    if is_proportion:
+        return wilson_interval(int(sum(clean)), len(clean), level=level)
 
     rng = random.Random(seed)
     n = len(clean)
@@ -95,7 +134,8 @@ def bootstrap_paired_diff(
         return Interval(float("nan"), float("nan"), float("nan"), level)
 
     diffs = [x - y for x, y in pairs]
-    return bootstrap_mean(diffs, level=level, resamples=resamples, seed=seed)
+    # 差は割合ではない。全件が 0 でも Wilson を使ってはいけない。
+    return bootstrap_mean(diffs, level=level, resamples=resamples, seed=seed, proportion=False)
 
 
 def is_significant(interval: Interval) -> bool:

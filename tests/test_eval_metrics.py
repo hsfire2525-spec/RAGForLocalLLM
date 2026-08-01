@@ -307,3 +307,43 @@ def test_plausible_but_wrong_answers_are_still_rejected() -> None:
     ]
     for item, pred in cases:
         assert judge_answer(item, answer(pred)).outcome == "incorrect", pred
+
+
+# ----------------------------------------------------------------------
+# 境界での信頼区間（全問正解でブートストラップが縮退する問題）
+# ----------------------------------------------------------------------
+
+
+def test_all_correct_does_not_claim_certainty() -> None:
+    """**全問正解でもブートストラップは [1.0, 1.0] を返してはいけない。**
+
+    標本に分散が無いとどのリサンプルも同じ平均になり、「絶対に 1.0」という
+    主張になる。42問中42問正解でも真の正答率が 0.92 でありうる。
+    """
+    interval = bootstrap_mean([1.0] * 42)
+    assert interval.point == pytest.approx(1.0)
+    assert interval.low < 0.95
+    assert interval.high == pytest.approx(1.0)
+
+
+def test_all_wrong_gives_an_upper_bound() -> None:
+    interval = bootstrap_mean([0.0] * 42)
+    assert interval.point == pytest.approx(0.0)
+    assert 0.0 < interval.high < 0.15
+
+
+def test_continuous_values_still_use_bootstrap() -> None:
+    """char F1 のような連続値は割合ではない。"""
+    interval = bootstrap_mean([0.1, 0.5, 0.9, 0.3, 0.7])
+    assert interval.low < interval.point < interval.high
+
+
+def test_identical_runs_give_a_zero_width_difference() -> None:
+    """**差の系列に Wilson を使ってはいけない。**
+
+    差が偶然すべて 0 でも「割合 0」ではなく「差が無い」であり、
+    非対称な割合の区間は意味を持たない。
+    """
+    interval = bootstrap_paired_diff([1.0] * 42, [1.0] * 42)
+    assert (interval.point, interval.low, interval.high) == (0.0, 0.0, 0.0)
+    assert not is_significant(interval)

@@ -1,0 +1,30 @@
+# hybrid + コンテキスト予算の是正。
+#
+# **hybrid の検索改善が正答率に届いていなかった原因への対処。**
+# chunk_size=512 × top_k=5 は約2,500トークンを要するのに予算が1,536しかなく、
+# 実際にプロンプトへ入るのは中央値3件だった。検索が取れた根拠の約6%が
+# ここで捨てられていた（context_hit 0.912 < hit@5 0.971）。
+#
+# 検索のみのスイープ結果（docs/design/design.md §9 Phase 3-2）:
+#
+#   予算 1536 / chunk 512 / k5 → hit@5 0.971  context_hit 0.912  precision 0.330
+#   予算 2560 / chunk 512 / k5 → hit@5 0.971  context_hit 0.971  precision 0.218
+#   予算 4096 / chunk 512 / k5 → hit@5 0.971  context_hit 0.971  precision 0.206
+#   予算 1536 / chunk 256 / k8 → hit@5 0.882  context_hit 0.882  precision 0.190
+#
+# 2560 で損失が消え、4096 に増やしても得るものがない。chunk を小さくすると
+# 検索そのものが悪化する（マッチに必要な文脈が失われる）ため、chunk は 512 のまま。
+#
+# **代償はプロンプト内のノイズ増**（precision 0.330 → 0.218）。4B級モデルは
+# 名目コンテキスト長に達する前に劣化するため、これが効くかは実測で確かめる。
+extends: hybrid
+name: hybrid_budget
+
+query:
+  prompt:
+    type: template
+    path: prompts/basic_ja.jinja
+    # 取得した5件（512字 × 約1トークン/字）が丸ごと収まる量
+    context_token_budget: 2560
+    overflow_policy: drop_lowest
+    instruction_placement: system
