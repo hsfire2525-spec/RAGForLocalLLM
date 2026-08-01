@@ -538,16 +538,35 @@ def cmd_review(
         )
 
 
-def _show_for_review(i: int, total: int, row: dict[str, object]) -> None:
+def _show_for_review(i: int, total: int, row: dict[str, Any]) -> None:
     console.rule(f"{i}/{total}  {row.get('qid')}  [{row.get('question_type')}]")
     console.print(f"[bold]質問[/bold] {row.get('question')}")
     console.print(f"[bold]gold[/bold] {row.get('gold_answer')}")
     style = "yellow" if row.get("abstained") else "cyan"
     console.print(f"[bold {style}]回答[/bold {style}] {row.get('answer')}")
-    console.print(
-        f"[dim]自動判定: {row.get('outcome')}  char_f1={row.get('char_f1')}  "
-        f"引用={row.get('citations')}  根拠={row.get('gold_chunk_ids')}[/dim]"
-    )
+    console.print(f"[dim]自動判定: {row.get('outcome')}  char_f1={row.get('char_f1')}[/dim]")
+    console.print(f"[dim]検索: {_retrieval_note(row)}[/dim]")
+
+
+def _retrieval_note(row: dict[str, Any]) -> str:
+    """検索が根拠を取れたかを人手検査の画面に出す。
+
+    **gold の根拠IDをそのまま表示してはいけない。** 検査者はそれを
+    「システムが持っていた根拠」と読んでしまい、「根拠があるのに棄権した」と
+    誤診する。実際に一致率検査でこの誤読が起きた。棄権や誤答の原因が
+    検索側にあるのか生成側にあるのかは、検査で最も知りたいことなので、
+    順位まで含めて明示する。
+    """
+    gold_ids = set(row.get("gold_chunk_ids") or [])
+    if not gold_ids:
+        return "根拠なし（回答不能な質問）"
+    retrieved = [r["chunk_id"] for r in row.get("retrieved") or []]
+    for rank, chunk_id in enumerate(retrieved, start=1):
+        if chunk_id in gold_ids:
+            in_context = chunk_id in set(row.get("context_chunk_ids") or [])
+            note = "" if in_context else "（ただしプロンプトには入っていない）"
+            return f"[green]根拠を{rank}位で取得[/green]{note}"
+    return f"[red]根拠を取得できず[/red]（上位{len(retrieved)}件に無し。棄権や誤答は検索側の問題）"
 
 
 def _ask_verdict() -> Verdict | None:

@@ -115,3 +115,63 @@ def test_agreement_ignores_unreviewed_rows(tmp_path: Path) -> None:
     result = agreement([row("q1")], store)
     assert result["n_reviewed"] == 0
     assert result["agreement_rate"] is None
+
+
+# ----------------------------------------------------------------------
+# 検査画面の表示（誤診を招いた表示バグの回帰）
+# ----------------------------------------------------------------------
+
+
+def retrieval_note(row: dict[str, object]) -> str:
+    from ragforlocalllm.cli import _retrieval_note
+
+    note = _retrieval_note(row)
+    for tag in ("[green]", "[/green]", "[red]", "[/red]"):
+        note = note.replace(tag, "")
+    return note
+
+
+def prediction(**kwargs: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "qid": "q1",
+        "gold_chunk_ids": ["g1"],
+        "retrieved": [{"chunk_id": "g1", "score": 0.9}],
+        "context_chunk_ids": ["g1"],
+    }
+    payload.update(kwargs)
+    return payload
+
+
+def test_review_shows_the_rank_at_which_evidence_was_retrieved() -> None:
+    row = prediction(
+        retrieved=[{"chunk_id": "x"}, {"chunk_id": "g1"}], context_chunk_ids=["x", "g1"]
+    )
+    assert "2位" in retrieval_note(row)
+
+
+def test_review_flags_evidence_that_was_never_retrieved() -> None:
+    """**gold の根拠IDをそのまま出してはいけない。**
+
+    検査者はそれを「システムが持っていた根拠」と読み、「根拠があるのに
+    棄権した」と誤診する。実際に一致率検査でこの誤読が起きた。
+    """
+    row = prediction(retrieved=[{"chunk_id": "x"}], context_chunk_ids=["x"])
+    note = retrieval_note(row)
+    assert "取得できず" in note
+    assert "検索側の問題" in note
+
+
+def test_review_flags_evidence_dropped_by_the_context_budget() -> None:
+    """検索できていてもプロンプトに入らなければ回答できない。
+
+    実測では 42問中38問で予算によりチャンクが落ちており、うち1問は
+    落ちたのが gold の根拠そのものだった。
+    """
+    row = prediction(retrieved=[{"chunk_id": "x"}, {"chunk_id": "g1"}], context_chunk_ids=["x"])
+    note = retrieval_note(row)
+    assert "2位" in note
+    assert "プロンプトには入っていない" in note
+
+
+def test_review_marks_unanswerable_questions_as_having_no_evidence() -> None:
+    assert "回答不能" in retrieval_note(prediction(gold_chunk_ids=[]))
