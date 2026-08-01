@@ -177,7 +177,11 @@ uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 ## ドキュメント
 
 - [設計方針](docs/design/design.md) — パイプラインの段分割、コア抽象、評価設計、実装フェーズ
-- `docs/experiments/` — 実験ログと考察
+- [実験ログ](docs/experiments/) — 何を試して何が起きたか（追記のみ）
+  - [IPAガイドラインでのベースライン構築](docs/experiments/2026-08-01-ipa-baseline.md) —
+    正答率 0.867 → 0.983。効いたのは検索とコンテキスト管理で、モデルの大型化ではない
+  - [測定側で見つけた欠陥](docs/experiments/2026-08-01-measurement-defects.md) —
+    「静かに壊れる」欠陥を6件。5件は実物を動かすまで気付けなかった
 
 ## ステータス
 
