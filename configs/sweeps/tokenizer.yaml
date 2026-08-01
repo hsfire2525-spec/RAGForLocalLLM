@@ -1,0 +1,15 @@
+# 日本語の分割方式の比較。
+#
+# **形態素解析と文字n-gramのどちらが有効かはコーパス依存。** IPAガイドラインでは
+# 「表4」「付録6」のような参照が効き、bi-gram が有利という仮説を持っているが、
+# 社外秘資料では違いうる。決め打ちにせず測る（design.md §9 Phase 3-1）。
+#
+# sudachi を使うには `uv sync --extra ja` が必要。
+base: hybrid_budget
+mode: ablation
+
+axes:
+  query.retriever.retrievers:
+    - [{type: dense, top_k: 20}, {type: sparse, top_k: 20, tokenizer: char_ngram}]
+    - [{type: dense, top_k: 20}, {type: sparse, top_k: 20, tokenizer: char_ngram, tokenizer_options: {n: 3}}]
+    - [{type: dense, top_k: 20}, {type: sparse, top_k: 20, tokenizer: sudachi}]

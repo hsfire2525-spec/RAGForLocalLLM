@@ -1,7 +1,7 @@
 """コマンドラインインターフェース。
 
 ``index`` / ``query`` / ``env`` / ``components`` / ``gold`` / ``eval`` /
-``report`` / ``review`` が動く。``sweep`` は Phase 3 で実装する。
+``report`` / ``review`` が動く。すべて実装済み。
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ from ragforlocalllm.eval.review import (
 from ragforlocalllm.eval.runner import run_evaluation
 from ragforlocalllm.experiments.footprint import measure
 from ragforlocalllm.experiments.report import compare, shared_qid_count
+from ragforlocalllm.experiments.sweep import describe_plan, expand, load_sweep, validate
 from ragforlocalllm.server.app import create_app
 from ragforlocalllm.server.security import TOKEN_ENV, generate_token, resolve_policy
 
@@ -671,13 +672,92 @@ def cmd_serve(
 
 
 @app.command("sweep")
-def cmd_sweep(config: ConfigOption) -> None:
-    """スイープを実行する（Phase 3 で実装）。"""
-    console.print(
-        "[yellow]sweep は未実装です（Phase 3 で実装予定）。[/yellow]\n"
-        "docs/design/design.md §8 の実装フェーズを参照してください。"
-    )
-    raise typer.Exit(code=1)
+def cmd_sweep(
+    sweep_config: Annotated[Path, typer.Argument(help="スイープ設定（configs/sweeps/*.yaml）")],
+    dataset: Annotated[
+        Path | None, typer.Option("--dataset", "-d", help="gold データセット")
+    ] = None,
+    limit: Annotated[int | None, typer.Option("--limit", help="各変種で先頭N件だけ評価")] = None,
+    label: Annotated[str | None, typer.Option("--label", help="環境ラベル")] = None,
+    runs_root: RunsRootOption = RUNS_ROOT,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="実行せず計画だけ表示する")] = False,
+    no_cache: NoCacheOption = False,
+) -> None:
+    """ベースラインから軸を振って比較する。
+
+    既定はアブレーション（1軸ずつ変える）。全変種を**実行前に検証する**ので、
+    設定の誤りは最初に分かる。
+    """
+    try:
+        sweep = load_sweep(sweep_config)
+        variants = expand(sweep)
+        configs = [validate(v) for v in variants]
+    except ConfigError as exc:
+        console.print(f"[red]スイープ設定エラー[/red]\n{exc}")
+        raise typer.Exit(code=2) from exc
+
+    plan = describe_plan(sweep, variants)
+    console.print_json(json.dumps(plan, ensure_ascii=False))
+    if plan["reindex_axes"]:
+        console.print(
+            "[yellow]注意[/yellow] 次の軸は index 側を変えるため、変種ごとに"
+            f"再埋め込みが走ります: {', '.join(plan['reindex_axes'])}"
+        )
+
+    table = Table(title=f"実行する構成 {len(variants)} 件")
+    table.add_column("#", justify="right")
+    table.add_column("名前", overflow="fold")
+    table.add_column("基準からの差分", overflow="fold")
+    for i, variant in enumerate(variants, start=1):
+        table.add_row(str(i), variant.name, variant.label)
+    console.print(table)
+    if dry_run:
+        return
+
+    gold_path = dataset or configs[0].eval.dataset
+    if gold_path is None:
+        console.print("[red]gold データセットが指定されていません[/red]")
+        raise typer.Exit(code=2)
+    try:
+        gold = load_gold(gold_path)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]gold エラー[/red]\n{exc}")
+        raise typer.Exit(code=2) from exc
+
+    completed: list[str] = []
+    failures: list[tuple[str, str]] = []
+    with _cache(no_cache) as cache:
+        for i, (variant, cfg) in enumerate(zip(variants, configs, strict=True), start=1):
+            console.rule(f"[{i}/{len(variants)}] {variant.name}  {variant.label}")
+            try:
+                with console.status("評価中…"):
+                    result = run_evaluation(
+                        cfg,
+                        gold,
+                        cache=cache,
+                        limit=limit,
+                        root=runs_root,
+                        env_label=label,
+                    )
+            except Exception as exc:
+                # **1件の失敗でスイープ全体を捨てない。** 長時間かかるため、
+                # 残りを走らせてから失敗を報告する。
+                failures.append((variant.name, f"{type(exc).__name__}: {exc}"))
+                console.print(f"[red]失敗[/red] {exc}")
+                continue
+            completed.append(result.record.name)
+            generation = result.metrics["generation"]
+            console.print(
+                f"正答率 {generation['accuracy']}  誤答率 {generation['error_rate']}  "
+                f"棄権率 {generation['abstention_rate']}"
+            )
+
+    console.rule("完了")
+    for name, error in failures:
+        console.print(f"[red]失敗[/red] {name}: {error}")
+    if len(completed) > 1:
+        console.print("[dim]比較するには:[/dim]")
+        console.print(f"  uv run rag report {' '.join(completed)}")
 
 
 if __name__ == "__main__":

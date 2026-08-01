@@ -1,0 +1,18 @@
+# 検索まわりのアブレーション。hybrid_budget を基準に1軸ずつ変える。
+#
+# **1軸ずつ変えるのは「何が効いたか」を分離するため。** 格子探索は
+# 組合せ数が爆発するうえ、複数を同時に変えると要因を切り分けられない
+# （docs/design/design.md §6.6）。
+base: hybrid_budget
+mode: ablation
+
+axes:
+  # 検索方式。dense 単体・BM25 単体・ハイブリッドの比較。
+  query.retriever.type: [dense, sparse, hybrid]
+
+  # コンテキスト予算。2560 で予算落ちが消えることを確認済みだが、
+  # 減らしたときにどこから壊れるかを見る。
+  query.prompt.context_token_budget: [1536, 2560, 4096]
+
+  # RRF の定数。小さいほど上位を重視する。
+  query.retriever.rrf_k: [10, 60, 120]
