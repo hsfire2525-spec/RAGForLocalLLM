@@ -35,6 +35,11 @@ models = [
     "sentence-transformers>=3.0",
     "torch>=2.3",
 ]
+# 社内共有のWeb UI。ローカル完結（外部CDNを使わない）
+server = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 # LM Studio 等の OpenAI 互換サーバ
 llm = [
     "httpx>=0.27",

@@ -35,6 +35,8 @@ from ragforlocalllm.eval.review import (
 from ragforlocalllm.eval.runner import run_evaluation
 from ragforlocalllm.experiments.footprint import measure
 from ragforlocalllm.experiments.report import compare, shared_qid_count
+from ragforlocalllm.server.app import create_app
+from ragforlocalllm.server.security import TOKEN_ENV, generate_token, resolve_policy
 
 app = typer.Typer(
     add_completion=False,
@@ -594,6 +596,78 @@ def _ask_verdict() -> Verdict | None:
     if answer.lower() in ("q", "quit"):
         return None
     return choices.get(answer)
+
+
+@app.command("serve")
+def cmd_serve(
+    host: Annotated[
+        str, typer.Option("--host", help="バインド先。社内公開する場合のみ 0.0.0.0 にする")
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="待ち受けポート")] = 8000,
+    token: Annotated[
+        str | None,
+        typer.Option("--token", help=f"共有トークン。既定は環境変数 {TOKEN_ENV}"),
+    ] = None,
+    audit_log: Annotated[Path | None, typer.Option("--audit-log", help="監査ログの出力先")] = None,
+    new_token: Annotated[
+        bool, typer.Option("--new-token", help="共有トークンを生成して表示し、終了する")
+    ] = False,
+    warmup: Annotated[
+        str | None,
+        typer.Option(
+            "--warmup",
+            help="起動時に読み込む設定（カンマ区切り）。1設定あたり約1.5GB常駐する",
+        ),
+    ] = None,
+) -> None:
+    """Web UI と API を起動する。
+
+    **社内公開する場合は必ずトークンを設定すること。** 認証なしで
+    ループバック以外にバインドしようとすると警告のうえ起動を中止する。
+    """
+    if new_token:
+        console.print(generate_token())
+        return
+
+    policy = resolve_policy(host, token=token, audit_log=audit_log)
+    for message in policy.warnings():
+        console.print(f"[yellow]警告[/yellow] {message}")
+    if not policy.is_loopback and not policy.requires_token:
+        console.print(
+            "[red]認証なしでの社内公開は中止しました。[/red]\n"
+            f"  トークンを生成: [bold]rag serve --new-token[/bold]\n"
+            f"  設定して起動  : [bold]{TOKEN_ENV}=<token> rag serve --host {host}[/bold]"
+        )
+        raise typer.Exit(code=2)
+
+    try:
+        import uvicorn
+    except ImportError as exc:
+        console.print("[red]uvicorn が必要です[/red]: uv sync --extra server")
+        raise typer.Exit(code=2) from exc
+
+    application = create_app(policy)
+    if warmup:
+        names = [n.strip() for n in warmup.split(",") if n.strip()]
+        with console.status(f"事前読み込み中… {', '.join(names)}"):
+            outcomes = application.state.registry.warmup(names)
+        for name, error in outcomes:
+            if error:
+                console.print(f"[red]事前読み込み失敗[/red] {name}: {error}")
+            else:
+                console.print(f"[green]読み込み完了[/green] {name}")
+    else:
+        console.print(
+            "[dim]初回アクセスは埋め込みモデルの読み込みで十数秒かかります。"
+            "`--warmup <設定名>` で事前に読み込めます。[/dim]"
+        )
+
+    console.print(f"[green]起動[/green] http://{host}:{port}")
+    console.print(
+        f"[dim]認証: {'あり' if policy.requires_token else 'なし'} / "
+        f"監査ログ: {policy.audit_log}[/dim]"
+    )
+    uvicorn.run(application, host=host, port=port, log_level="warning")
 
 
 @app.command("sweep")

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>社内文書検索</title>
+<!--
+  外部CDNを一切使わない。機密資料を扱う環境は閉域であることが多く、
+  外部参照があると動かないか、参照先に情報が漏れる。
+-->
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #1d4ed8; --warn-bg: #fef3c7; --warn-fg: #92400e;
+    --cite-bg: #eff6ff; --cite-line: #bfdbfe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111317; --fg: #e8eaed; --muted: #9aa0a6; --line: #2c3036;
+      --accent: #7aa2f7; --warn-bg: #3b3117; --warn-fg: #fbbf24;
+      --cite-bg: #16202e; --cite-line: #26415f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    line-height: 1.7;
+  }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); font-size: .85rem; margin: 0 0 1.5rem; }
+  fieldset { border: 1px solid var(--line); border-radius: .5rem; padding: 1rem; margin: 0 0 1rem; }
+  legend { font-size: .8rem; color: var(--muted); padding: 0 .4rem; }
+  textarea, input, select, button {
+    font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--line); border-radius: .375rem; padding: .5rem .6rem;
+  }
+  textarea { width: 100%; min-height: 4.5rem; resize: vertical; }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .6rem; }
+  button {
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    padding: .55rem 1.1rem; font-weight: 600;
+  }
+  button:disabled { opacity: .55; cursor: progress; }
+  .answer {
+    border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: .375rem; padding: .9rem 1rem; margin: 1rem 0; white-space: pre-wrap;
+  }
+  .answer.abstained { border-left-color: var(--warn-fg); background: var(--warn-bg); color: var(--warn-fg); }
+  .meta { color: var(--muted); font-size: .8rem; }
+  details { border: 1px solid var(--line); border-radius: .375rem; margin: .5rem 0; }
+  details[open] { background: color-mix(in srgb, var(--fg) 3%, transparent); }
+  summary { cursor: pointer; padding: .55rem .8rem; font-size: .9rem; }
+  .ctx { padding: 0 .8rem .8rem; }
+  .ctx.cited { background: var(--cite-bg); border-left: 3px solid var(--cite-line); }
+  .ctx pre {
+    white-space: pre-wrap; word-break: break-word; font-size: .85rem;
+    background: transparent; margin: .5rem 0 0;
+  }
+  .tag {
+    display: inline-block; font-size: .7rem; padding: .1rem .45rem; border-radius: .25rem;
+    background: var(--cite-bg); color: var(--accent); border: 1px solid var(--cite-line);
+    margin-left: .4rem; vertical-align: middle;
+  }
+  .banner {
+    background: var(--warn-bg); color: var(--warn-fg); padding: .6rem .9rem;
+    border-radius: .375rem; font-size: .85rem; margin-bottom: 1rem;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  td, th { border-bottom: 1px solid var(--line); padding: .3rem .5rem; text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>社内文書検索</h1>
+  <p class="sub">回答は必ず根拠と併せて確認してください。根拠のない回答は使わないでください。</p>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <fieldset id="login" class="hidden">
+    <legend>アクセストークン</legend>
+    <div class="row">
+      <input id="token" type="password" placeholder="共有トークン" style="flex:1;min-width:14rem">
+      <button id="login-btn">認証</button>
+    </div>
+    <p class="meta" style="margin:.5rem 0 0">
+      このブラウザのタブ内にのみ保存されます（タブを閉じると破棄されます）。
+    </p>
+  </fieldset>
+
+  <fieldset id="ask" class="hidden">
+    <legend>質問</legend>
+    <textarea id="q" placeholder="例: 情報セキュリティ基本方針を承認するのは誰か。"></textarea>
+    <div class="row">
+      <select id="config"></select>
+      <button id="send">質問する</button>
+      <span id="status" class="meta"></span>
+    </div>
+  </fieldset>
+
+  <div id="result"></div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const state = { token: sessionStorage.getItem("rag_token") || "" };
+
+  const headers = () => {
+    const h = { "Content-Type": "application/json" };
+    if (state.token) h["Authorization"] = "Bearer " + state.token;
+    return h;
+  };
+
+  const banner = (msg) => {
+    const el = $("banner");
+    el.textContent = msg;
+    el.classList.toggle("hidden", !msg);
+  };
+
+  // textContent 経由でのみ描画する。資料本文をそのまま innerHTML に
+  // 入れると、資料中の文字列がマークアップとして解釈されうる。
+  const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  async function loadConfigs() {
+    const res = await fetch("/api/configs", { headers: headers() });
+    if (res.status === 401) { showLogin("トークンが正しくありません。"); return false; }
+    if (!res.ok) { banner("設定の取得に失敗しました。"); return false; }
+    const { configs } = await res.json();
+    const sel = $("config");
+    sel.textContent = "";
+    for (const name of configs) sel.appendChild(new Option(name, name));
+    if (configs.includes("baseline")) sel.value = "baseline";
+    return true;
+  }
+
+  function showLogin(msg) {
+    $("login").classList.remove("hidden");
+    $("ask").classList.add("hidden");
+    if (msg) banner(msg);
+  }
+
+  function showAsk() {
+    $("login").classList.add("hidden");
+    $("ask").classList.remove("hidden");
+    banner("");
+    $("q").focus();
+  }
+
+  function renderContext(c, i) {
+    const d = el("details");
+    const s = el("summary");
+    s.appendChild(document.createTextNode(`${i + 1}. ${c.section_path || c.chunk_id}`));
+    if (c.cited) s.appendChild(el("span", "tag", "回答が引用"));
+    if (!c.in_prompt) s.appendChild(el("span", "tag", "未使用（予算外）"));
+    if (c.page != null) s.appendChild(el("span", "tag", `p.${c.page}`));
+    d.appendChild(s);
+    const body = el("div", "ctx" + (c.cited ? " cited" : ""));
+    body.appendChild(el("pre", null, c.text));
+    body.appendChild(el("p", "meta", `${c.chunk_id} / score ${c.score}`));
+    d.appendChild(body);
+    if (c.cited) d.open = true;
+    return d;
+  }
+
+  function renderTrace(trace, latency) {
+    const d = el("details");
+    d.appendChild(el("summary", null, `処理の内訳（合計 ${latency} ms）`));
+    const table = el("table");
+    const head = el("tr");
+    for (const h of ["段", "実装", "ms"]) head.appendChild(el("th", null, h));
+    table.appendChild(head);
+    for (const t of trace) {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, t.stage));
+      tr.appendChild(el("td", null, t.impl));
+      tr.appendChild(el("td", null, String(t.duration_ms)));
+      table.appendChild(tr);
+    }
+    const wrap = el("div", "ctx");
+    wrap.appendChild(table);
+    d.appendChild(wrap);
+    return d;
+  }
+
+  function render(data) {
+    const out = $("result");
+    out.textContent = "";
+
+    const ans = el("div", "answer" + (data.abstained ? " abstained" : ""),
+      data.answer || "(回答なし)");
+    out.appendChild(ans);
+
+    if (data.abstained) {
+      out.appendChild(el("p", "meta",
+        "根拠が不足していると判断されました。資料に記載がないか、検索で見つけられていません。"));
+    } else if (!data.citations.length) {
+      out.appendChild(el("p", "meta",
+        "この回答は引用を示していません。下の根拠を必ず確認してください。"));
+    }
+
+    out.appendChild(el("h2", null, "根拠"));
+    if (!data.contexts.length) {
+      out.appendChild(el("p", "meta", "参照された箇所はありません。"));
+    } else {
+      for (const [i, c] of data.contexts.entries()) out.appendChild(renderContext(c, i));
+    }
+    out.appendChild(renderTrace(data.trace, data.latency_ms));
+  }
+
+  async function ask() {
+    const question = $("q").value.trim();
+    if (!question) return;
+    $("send").disabled = true;
+    $("status").textContent = "検索中…";
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ question, config: $("config").value }),
+      });
+      if (res.status === 401) { showLogin("トークンが正しくありません。"); return; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        banner(body.detail || "エラーが発生しました。");
+        return;
+      }
+      render(await res.json());
+    } catch (e) {
+      banner("サーバに接続できませんでした。");
+    } finally {
+      $("send").disabled = false;
+      $("status").textContent = "";
+    }
+  }
+
+  $("login-btn").addEventListener("click", async () => {
+    state.token = $("token").value.trim();
+    sessionStorage.setItem("rag_token", state.token);
+    if (await loadConfigs()) showAsk();
+  });
+  $("token").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("login-btn").click();
+  });
+  $("send").addEventListener("click", ask);
+  $("q").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask();
+  });
+
+  (async () => {
+    const health = await fetch("/api/health").then((r) => r.json()).catch(() => null);
+    if (!health) { banner("サーバに接続できませんでした。"); return; }
+    if (!health.auth_required) { await loadConfigs(); showAsk(); return; }
+    if (state.token && await loadConfigs()) { showAsk(); return; }
+    showLogin();
+  })();
+})();
+</script>
+</body>
+</html>
