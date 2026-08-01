@@ -24,5 +24,7 @@ from ragforlocalllm.stages.post_retrieval import basic as _post_retrieval_basic
 from ragforlocalllm.stages.prompt import template as _prompt_template
 from ragforlocalllm.stages.query_transform import rules as _query_transform_rules
 from ragforlocalllm.stages.retriever import dense as _retriever_dense
+from ragforlocalllm.stages.retriever import hybrid as _retriever_hybrid
+from ragforlocalllm.stages.retriever import sparse as _retriever_sparse
 
 __all__: list[str] = []

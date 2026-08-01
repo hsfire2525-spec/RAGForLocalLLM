@@ -72,6 +72,12 @@ def build(kind: str, spec: Mapping[str, Any], **injected: Any) -> Any:
     ``injected`` は設定に書けない依存（構築済みの埋め込み器や
     インデックスなど）を渡すためのもの。設定側で同名のキーが
     指定されていた場合は衝突としてエラーにする。
+
+    **注入は「使うものだけ」渡す。** コンポーネントはコンストラクタに
+    書いた依存だけを受け取り、要らないものは無視される。これが無いと、
+    合成する側（hybrid 検索器など）が子ごとに必要な依存を知っていなければ
+    ならず、依存の一覧が2箇所に分散する。BM25 は埋め込み器を必要としないが、
+    hybrid は dense と BM25 の両方を同じ呼び出しで構築する。
     """
     if "type" not in spec:
         raise RegistryError(f"{kind} の設定に 'type' がありません: {dict(spec)!r}")
@@ -88,12 +94,30 @@ def build(kind: str, spec: Mapping[str, Any], **injected: Any) -> Any:
             f"{kind}/{name}: 設定で指定できないキーが含まれています: {', '.join(conflicts)}"
             "（これらは実行時に注入されます）"
         )
-    kwargs.update(injected)
+    kwargs.update(_accepted_injections(cls, injected))
     _check_kwargs(kind, name, cls, kwargs)
     try:
         return cls(**kwargs)
     except TypeError as exc:  # シグネチャ検査で拾えない場合の保険
         raise RegistryError(f"{kind}/{name} の生成に失敗しました: {exc}") from exc
+
+
+def _accepted_injections(cls: type, injected: Mapping[str, Any]) -> dict[str, Any]:
+    """コンストラクタが受け取ると宣言している依存だけを返す。
+
+    設定キーと違い、注入は**渡す側が一律に用意する**もの。受け取らない
+    コンポーネントにまで渡すとエラーになり、合成が成立しない。
+    誤字は「必須引数が足りない」として別途 TypeError になる。
+    """
+    if not injected:
+        return {}
+    try:
+        signature = inspect.signature(cls)
+    except (ValueError, TypeError):  # C拡張など
+        return dict(injected)
+    if any(p.kind is p.VAR_KEYWORD for p in signature.parameters.values()):
+        return dict(injected)
+    return {k: v for k, v in injected.items() if k in signature.parameters}
 
 
 def _check_kwargs(kind: str, name: str, cls: type, kwargs: Mapping[str, Any]) -> None:

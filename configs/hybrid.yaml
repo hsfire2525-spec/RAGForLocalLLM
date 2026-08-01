@@ -1,0 +1,25 @@
+# ベースライン + ハイブリッド検索（dense + BM25 を RRF で統合）。
+#
+# **狙いは table / reference 型の質問。** ベースラインではこれらの正答率が
+# 0.50 に落ちており、原因は生成ではなく検索だった。「表4は何を示した表か」
+# のような参照は質問文に意味的手がかりが乏しく、埋め込みが効かない。
+# 字面で拾える BM25 を併せることで改善するはず、という仮説を検証する
+# （docs/design/design.md §9 Phase 2、§8 Phase 3 優先順位2）。
+#
+# baseline との差分は retriever のみ。1軸だけ変えることで
+# 「何が効いたか」を切り分ける（アブレーション）。
+extends: baseline
+name: hybrid
+
+query:
+  retriever:
+    type: hybrid
+    top_k: 5
+    # RRF は順位のみを使うためスコアの正規化が要らない。
+    # dense のコサインは上位が 0.83〜0.89 に密集し、BM25 は非有界なので、
+    # 加重和にすると重み調整がスケール合わせの作業になってしまう。
+    rrf_k: 60
+    retrievers:
+      # 子の top_k は最終件数ではなく候補数。統合の材料を確保する。
+      - {type: dense, top_k: 20}
+      - {type: sparse, top_k: 20, tokenizer: char_ngram}
