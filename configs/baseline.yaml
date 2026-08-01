@@ -54,8 +54,9 @@ query:
   generator:
     type: openai_compat
     base_url: http://localhost:1234/v1
-    # LM Studio 側にロード済みのモデルIDを指定する（`rag env -c baseline` で確認可）
-    model: gemma-4-e4b-it-qat
+    # LM Studio 側にロード済みのモデルIDを指定する（`rag env -c baseline` で確認可）。
+    # QAT版（gemma-4-e4b-it-qat）と agents-a1-4b は入手後に Phase 3 のモデル軸で比較する。
+    model: gemma-4-e4b-it
     temperature: 0.0
     seed: 42
     max_tokens: 512

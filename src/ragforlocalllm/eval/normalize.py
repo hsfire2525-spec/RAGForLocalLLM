@@ -96,17 +96,83 @@ def best_char_f1(prediction: str, accepted: list[str]) -> float:
     return max(char_f1(prediction, a) for a in candidates)
 
 
-def set_f1(predicted_items: list[str], reference_items: list[str]) -> float:
-    """列挙型回答の集合F1。要素は正規化して比較する。"""
-    pred = {normalize_answer(i) for i in predicted_items if normalize_answer(i)}
-    ref = {normalize_answer(i) for i in reference_items if normalize_answer(i)}
+def windowed_char_f1(prediction: str, reference: str) -> float:
+    """予測の中で最も gold に一致する部分の char F1。
+
+    **char F1 は冗長さを強く罰する。** 4B級モデルは根拠や補足を添えて
+    答えるため、内容が正しくても予測が gold の3〜4倍の長さになり、
+    適合率が落ちて不正解と判定される。実測では以下がすべて誤答扱いだった:
+
+        gold: 脅威の起こりやすさと脆弱性のつけ込みやすさの2つの数値から算出する
+        pred: 「脅威の起こりやすさ」と「脆弱性のつけ込みやすさ」の2つの数値から
+              算出されます。これは、脅威が脆弱性を利用して…
+
+    そこで gold と同じ長さの窓を予測上で滑らせ、最も一致する位置で測る。
+    「gold の内容が、gold と同じ密度でどこかに現れるか」を見ていることになる。
+    冗長さの上限を別途パラメータで持つより、概念が1つで済む。
+    """
+    pred = normalize_answer(prediction)
+    ref = normalize_answer(reference)
     if not pred or not ref:
         return 1.0 if not pred and not ref else 0.0
-    common = len(pred & ref)
-    if common == 0:
+    if len(pred) <= len(ref):
+        return char_f1(prediction, reference)
+
+    ref_counts = Counter(ref)
+    width = len(ref)
+    step = max(1, width // 10)
+    best = 0.0
+    for start in range(0, len(pred) - width + 1, step):
+        window = Counter(pred[start : start + width])
+        common = sum((window & ref_counts).values())
+        if common:
+            # 窓幅 = gold 長なので適合率と再現率は同じ分母になる
+            best = max(best, common / width)
+    return best
+
+
+def best_windowed_char_f1(prediction: str, accepted: list[str]) -> float:
+    candidates = [a for a in accepted if a.strip()]
+    if not candidates:
         return 0.0
-    precision = common / len(pred)
-    recall = common / len(ref)
+    return max(windowed_char_f1(prediction, a) for a in candidates)
+
+
+def set_f1(predicted_items: list[str], reference_items: list[str]) -> float:
+    """列挙型回答の集合F1。要素は**包含**で対応付ける。
+
+    完全一致で突き合わせてはいけない。モデルは列挙を裸の単語では返さず、
+    文の中に埋め込んで答える:
+
+        gold: 実施している、一部実施している、実施していない、わからない
+        pred: 「実施している 4点」「一部実施している 2点」…
+
+    要素の完全一致を要求すると、この**内容として正しい回答が 0 点**になる。
+    実際に4B級モデルで測ったところ、列挙型の正答率が 0.20 まで落ち、
+    自動採点が人手判定と大きく乖離した。
+
+    そこで「gold の要素が予測のどこかに現れるか」で対応付ける。
+    再現率は gold 側、適合率は予測側の要素がどれかの gold に対応したかで数える
+    （冗長な列挙に歯止めをかけるため適合率も見る）。
+    """
+    pred = [normalize_answer(i) for i in predicted_items]
+    ref = [normalize_answer(i) for i in reference_items]
+    pred = [p for p in pred if p]
+    ref = [r for r in ref if r]
+    if not pred or not ref:
+        return 1.0 if not pred and not ref else 0.0
+
+    def linked(a: str, b: str) -> bool:
+        return a in b or b in a
+
+    matched_ref = sum(1 for r in ref if any(linked(r, p) for p in pred))
+    matched_pred = sum(1 for p in pred if any(linked(r, p) for r in ref))
+    if matched_ref == 0:
+        return 0.0
+    recall = matched_ref / len(ref)
+    precision = matched_pred / len(pred)
+    if precision + recall == 0:
+        return 0.0
     return 2 * precision * recall / (precision + recall)
 
 

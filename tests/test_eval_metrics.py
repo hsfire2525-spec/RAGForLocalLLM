@@ -232,3 +232,78 @@ def test_paired_diff_of_noise_is_not_significant() -> None:
 def test_paired_diff_requires_aligned_series() -> None:
     with pytest.raises(ValueError, match="同じ長さ"):
         bootstrap_paired_diff([1.0, 0.0], [1.0])
+
+
+# ----------------------------------------------------------------------
+# 冗長な回答の採点（実測で見つかった採点漏れの回帰）
+# ----------------------------------------------------------------------
+
+
+def test_enumeration_answered_inside_a_sentence_is_correct() -> None:
+    """**モデルは列挙を裸の単語では返さない。**
+
+    要素の完全一致を要求すると、内容として正しい回答が 0 点になる。
+    実測では列挙型の正答率が 0.20 まで落ちた。
+    """
+    item = gold(
+        answer="実施している、一部実施している、実施していない、わからない", answer_type="list"
+    )
+    pred = (
+        "「実施している 4点」「一部実施している 2点」「実施していない 0点」「わからない -１点」 [1]"
+    )
+    assert judge_answer(item, answer(pred)).outcome == "correct"
+
+
+def test_verbose_but_correct_long_answer_is_accepted() -> None:
+    """char F1 は冗長さを強く罰する。窓で見れば内容の一致が拾える。"""
+    item = gold(
+        answer="脅威の起こりやすさと脆弱性のつけ込みやすさの2つの数値から算出する",
+        answer_type="long",
+    )
+    pred = (
+        "「被害発生可能性」は、「脅威の起こりやすさ」と「脆弱性のつけ込みやすさ」の2つの数値から"
+        "算出されます [3]。これは、脅威が脆弱性を利用して、どの程度被害をもたらす可能性があるかを"
+        "示すものです。"
+    )
+    assert judge_answer(item, answer(pred)).outcome == "correct"
+
+
+def test_phrase_short_answer_tolerates_rewording() -> None:
+    """句の短答は助詞や語尾の違いだけで EM も包含も落ちる。"""
+    item = gold(answer="委託先がどのような情報セキュリティ対策を行っているか考慮する")
+    pred = (
+        "業務の一部を外部に委託し重要な情報を委託先に提供する場合、委託先がどのような"
+        "情報セキュリティ対策を行っているかを考慮する必要がある [1]。"
+    )
+    assert judge_answer(item, answer(pred)).outcome == "correct"
+
+
+def test_single_word_short_answer_stays_strict() -> None:
+    """**単語の短答に char F1 を使ってはいけない。**
+
+    「経営」は「経営者」に対して char F1 0.8 になり、誤って正答になる。
+    gold の長さで指標を切り替えている。
+    """
+    item = gold(answer="経営者")
+    assert judge_answer(item, answer("従業")).outcome == "incorrect"
+
+
+def test_plausible_but_wrong_answers_are_still_rejected() -> None:
+    """緩めた採点が「何でも正答」になっていないことの確認。"""
+    cases = [
+        (gold(answer="5", answer_type="numeric"), "設問は30項目です。"),
+        (
+            gold(answer="知っているもの、持っているもの、本人自身に関するもの", answer_type="list"),
+            "3要素は、パスワード、合言葉、秘密の質問です。",
+        ),
+        (
+            gold(answer="重要度と被害発生可能性の2つの数値の掛け算で算定する", answer_type="long"),
+            "リスク値は、資産価値と復旧コストの足し算で算定します。",
+        ),
+        (
+            gold(answer="委託先がどのような情報セキュリティ対策を行っているか考慮する"),
+            "外注先の対策状況は発注側の責任外なので、確認する必要はありません。",
+        ),
+    ]
+    for item, pred in cases:
+        assert judge_answer(item, answer(pred)).outcome == "incorrect", pred

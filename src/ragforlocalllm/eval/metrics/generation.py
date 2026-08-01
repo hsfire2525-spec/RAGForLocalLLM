@@ -29,6 +29,7 @@ from ragforlocalllm.core.types import Answer
 from ragforlocalllm.eval.dataset import GoldItem
 from ragforlocalllm.eval.normalize import (
     best_char_f1,
+    best_windowed_char_f1,
     contains_answer,
     exact_match,
     normalize_answer,
@@ -39,6 +40,13 @@ from ragforlocalllm.eval.normalize import (
 Outcome = Literal["correct", "incorrect", "correct_abstention", "unjustified_abstention"]
 
 _DIGITS = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+
+PHRASE_MIN_CHARS = 10
+"""短答型を「単語」と「句」に分ける境界（正規化後の文字数）。
+
+これ以上の長さの gold には char F1 の判定を併用する。これ未満では
+文字の偶然の重なりで誤って正答になるため、EM と包含だけで見る。
+"""
 
 
 @dataclass(frozen=True)
@@ -104,6 +112,7 @@ def judge_answer(
         em=em,
         contains=contains,
         char_f1_value=cf1,
+        windowed=best_windowed_char_f1(answer.text, item.accepted_answers),
         set_f1_value=sf1,
         char_f1_threshold=char_f1_threshold,
         set_f1_threshold=set_f1_threshold,
@@ -126,6 +135,7 @@ def _is_correct(
     em: bool,
     contains: bool,
     char_f1_value: float,
+    windowed: float,
     set_f1_value: float | None,
     char_f1_threshold: float,
     set_f1_threshold: float,
@@ -134,12 +144,24 @@ def _is_correct(
     if item.answer_type == "list":
         return (set_f1_value or 0.0) >= set_f1_threshold
     if item.answer_type == "long":
-        return char_f1_value >= char_f1_threshold
+        # 言い回しが違っても内容が一致していれば正答とする。包含は
+        # 「gold の表現をそのまま含む」場合を拾い、窓付き char F1 は
+        # 冗長な回答の中に埋もれた正解を拾う。
+        return contains or windowed >= char_f1_threshold
     if item.answer_type == "numeric":
         # 「5」が「15項目」に含まれてしまうため、数値型では包含判定を
         # 使わず、数値トークンの一致で見る。
         return em or _numeric_match(prediction, item.accepted_answers)
-    return em or (accept_contains and contains)
+    if em or (accept_contains and contains):
+        return True
+    # **短答型には2種類ある。** 単語（「経営者」）と句（「利用者認証を…
+    # 行う技術」）で、適切な指標が違う。単語に char F1 を使うと「経営」が
+    # 「経営者」に対して 0.8 になり誤って正答になる。句では逆に、助詞や
+    # 語順の違いだけで EM も包含も落ちる（実測で definition の正答率が
+    # 0.60 まで下がった）。gold の長さで切り分ける。
+    return len(normalize_answer(item.answer)) >= PHRASE_MIN_CHARS and (
+        windowed >= char_f1_threshold
+    )
 
 
 def _numeric_match(prediction: str, accepted: Sequence[str]) -> bool:
