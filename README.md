@@ -54,6 +54,31 @@ uv run rag env -c smoke_lmstudio   # サーバ上のモデル一覧を確認
 uv run rag query "情報セキュリティ基本方針を承認するのは誰か。" -c smoke_lmstudio
 ```
 
+## 社外秘資料を扱う場合
+
+コーパス・gold・人手判定・ラン記録は**すべて本文の断片を含みうる**。
+機密資料を対象にする場合は `data/private/` 以下にまとめて置く。
+中身は `README.md` を除いて一切コミットされない。
+
+```bash
+uv run rag gold draft -c private_docs --n 40 -o data/private/gold/qa_v1.jsonl
+uv run rag eval  -c private_docs --runs-root data/private/runs
+uv run rag review <ラン名> --runs-root data/private/runs \
+    --store data/private/reviews/judgments.jsonl
+```
+
+`.gitignore` は `data/gold/` と `data/reviews/` も**原則禁止 + 明示許可**に
+してあるため、新しく作った gold は既定で無視される。加えて、
+`git add -A` の事故に備えてステージ内容を検査できる:
+
+```bash
+python scripts/check_private.py          # ステージ済みの内容
+python scripts/check_private.py --all    # 追跡中の全ファイル
+```
+
+pre-commit フックとして入れておくのが確実。詳細は
+[`data/private/README.md`](data/private/README.md) を参照。
+
 ## 評価用コーパス
 
 評価には IPA「中小企業の情報セキュリティ対策ガイドライン 第4.0版」を使用する。

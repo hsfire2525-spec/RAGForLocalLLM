@@ -18,6 +18,24 @@ data/corpus/*
 !data/corpus/corpus.lock.json
 !data/corpus/sample/
 
+# 機密資料を扱うための領域。中身は一切コミットしない。
+# コーパス・gold・人手判定・ラン記録をまとめてここに置く。
+data/private/*
+!data/private/README.md
+
+# gold はコーパス本文の引用を含む。**原則禁止 + 明示許可**にする。
+# 新しく作った gold は既定で無視されるため、機密資料の gold を
+# うっかり `git add -A` してしまう事故を防げる。
+data/gold/*
+!data/gold/sample_qa.jsonl
+!data/gold/qa_v1.jsonl
+!data/gold/qa_v2.jsonl
+
+# 人手判定にはモデルの回答（＝コーパス本文由来の文字列）が入る。
+# 同上の理由で原則禁止。
+data/reviews/*
+!data/reviews/human_judgments.jsonl
+
 # ベクトルインデックス
 *.faiss
 *.index

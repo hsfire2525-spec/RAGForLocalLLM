@@ -23,7 +23,7 @@ from ragforlocalllm.core.indexing import build_index
 from ragforlocalllm.core.pipeline import QueryPipeline
 from ragforlocalllm.eval.dataset import load_gold
 from ragforlocalllm.eval.draft import draft_candidates, todo_qids, verify_quotes
-from ragforlocalllm.eval.record import find_runs, resolve_run
+from ragforlocalllm.eval.record import RUNS_ROOT, find_runs, resolve_run
 from ragforlocalllm.eval.review import (
     VERDICT_LABELS,
     VERDICTS,
@@ -45,6 +45,13 @@ console = Console()
 
 ConfigOption = Annotated[Path, typer.Option("--config", "-c", help="実験設定YAML（configs/ 以下）")]
 NoCacheOption = Annotated[bool, typer.Option("--no-cache", help="キャッシュを使わない")]
+RunsRootOption = Annotated[
+    Path,
+    typer.Option(
+        "--runs-root",
+        help="ラン記録の出力先。機密資料では data/private/runs を指定する",
+    ),
+]
 
 
 def _cache(no_cache: bool) -> Cache:
@@ -341,9 +348,10 @@ def cmd_eval(
     ] = None,
     limit: Annotated[int | None, typer.Option("--limit", help="先頭N件だけ評価する")] = None,
     label: Annotated[str | None, typer.Option("--label", help="環境ラベル")] = None,
+    runs_root: RunsRootOption = RUNS_ROOT,
     no_cache: NoCacheOption = False,
 ) -> None:
-    """gold データセットで評価し、runs/ にランレコードを書き出す。"""
+    """gold データセットで評価し、ランレコードを書き出す。"""
     cfg = _load(config)
     gold_path = dataset or cfg.eval.dataset
     if gold_path is None:
@@ -365,7 +373,13 @@ def cmd_eval(
             status.update(f"評価中… {i}/{n_total}  {getattr(item, 'qid', '')}")
 
         result = run_evaluation(
-            cfg, gold, cache=cache, limit=limit, env_label=label, on_item=progress
+            cfg,
+            gold,
+            cache=cache,
+            limit=limit,
+            root=runs_root,
+            env_label=label,
+            on_item=progress,
         )
 
     console.print(f"[green]完了[/green] {result.record.directory}")
@@ -416,11 +430,14 @@ def _print_metrics(metrics: dict[str, Any]) -> None:
 @app.command("runs")
 def cmd_runs(
     limit: Annotated[int, typer.Option("--limit", "-n", help="表示件数")] = 20,
+    runs_root: RunsRootOption = RUNS_ROOT,
 ) -> None:
-    """runs/ にあるランを新しい順に一覧する。"""
-    records = find_runs()[:limit]
+    """ランを新しい順に一覧する。"""
+    records = find_runs(runs_root)[:limit]
     if not records:
-        console.print("[dim]ランがありません。`rag eval -c <設定>` を実行してください。[/dim]")
+        console.print(
+            f"[dim]{runs_root} にランがありません。`rag eval -c <設定>` を実行してください。[/dim]"
+        )
         return
     table = Table(title="ラン")
     table.add_column("ラン")
@@ -447,10 +464,11 @@ def cmd_report(
     metrics: Annotated[
         str, typer.Option("--metrics", help="カンマ区切りの指標名")
     ] = "accuracy,error_rate,abstention_rate,char_f1",
+    runs_root: RunsRootOption = RUNS_ROOT,
 ) -> None:
     """複数ランを信頼区間つきで比較する。"""
     try:
-        records = [resolve_run(r) for r in runs]
+        records = [resolve_run(r, root=runs_root) for r in runs]
     except (FileNotFoundError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=2) from exc
