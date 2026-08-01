@@ -307,18 +307,24 @@ def cmd_footprint(config: ConfigOption) -> None:
     table.add_column("段")
     table.add_column("実装")
     table.add_column("増分 MB", justify="right")
-    table.add_column("構築後 RSS MB", justify="right")
+    table.add_column("うち構築時", justify="right")
+    table.add_column("累積 RSS MB", justify="right")
     for component in result["components"]:
         if component["built"]:
             table.add_row(
                 component["kind"],
                 component["impl"],
                 str(component["delta_mb"]),
+                str(component["build_delta_mb"]),
                 str(component["rss_after_mb"]),
             )
         else:
             table.add_row(
-                component["kind"], component["impl"], "[red]構築失敗[/red]", component["error"][:40]
+                component["kind"],
+                component["impl"],
+                "[red]構築失敗[/red]",
+                "-",
+                component["error"][:40],
             )
     console.print(table)
     console.print(f"[bold]同時常駐時の合計 RSS[/bold] {result['resident_total_rss_mb']} MB")

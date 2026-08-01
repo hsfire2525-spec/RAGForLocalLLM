@@ -88,9 +88,24 @@ uv run rag gold check data/gold/qa_v1.jsonl -c ipa_draft
 ## 開発
 
 ```bash
-uv run pytest
+uv run pytest                    # 既定は決定的で速いものだけ
+uv run pytest -m slow            # モデルのダウンロードや実LLMを要するもの
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src
+```
+
+追加依存（PDF・FAISS・埋め込みモデル）を入れる場合:
+
+```bash
+uv sync --group dev --extra pdf --extra retrieval --extra models
+```
+
+`--extra models` は torch を伴うため初回は時間がかかる。
+PyPI の既定 wheel は NVIDIA CUDA ライブラリを同梱するので、
+**GPUを使わない環境やAMD環境では CPU 版を明示するほうが軽い**:
+
+```bash
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
 新しい手法を追加する手順:
@@ -106,13 +121,15 @@ uv run mypy src
 
 ## ステータス
 
-**Phase 0（基盤）・Phase 1（評価基盤）完了。**
+**Phase 0（基盤）・Phase 1（評価基盤）完了。Phase 2（ベースライン）は実装完了。**
 
 - 設定YAMLでパイプラインが通り、trace と環境情報が記録される
-- PDF Loader（`pymupdf` / `pypdf`）を評価用コーパスに対して実装・実測済み（設計方針 §9）
+- PDF Loader（`pymupdf` / `pypdf`）を評価用コーパスに対して実装・実測済み
 - gold引用 → チャンクID の解決器、検索・生成・コストの各メトリクス、
   ランレコード、**信頼区間つき**比較レポート、人手抽出検査CLI が動く
+- `multilingual-e5` + FAISS のベースライン（`configs/baseline.yaml`）が実コーパスで動く
+  （249チャンク / 768次元、埋め込み器の常駐量 1,460MB）
 
 **残るのは gold QA 40問の作成**（上記「評価データセットの作り方」）。
-これが凍結できれば Phase 2（multilingual-e5 + FAISS のベースライン構築と
-環境間の一致率確認）に進める。実装フェーズの詳細は設計方針 §8 を参照。
+凍結できれば `rag eval -c baseline` で基準点が記録され、Phase 3（リランカー・
+ハイブリッド検索などの手法比較）に進める。詳細は設計方針 §8・§9 を参照。

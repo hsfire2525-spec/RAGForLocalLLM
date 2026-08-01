@@ -81,4 +81,9 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# モデルのダウンロードや実サーバを要するテストは既定で除外する。
+# 実験の反復中に走らせたいのは、決定的で速いものだけ。
+addopts = "-q -m 'not slow'"
+markers = [
+    "slow: モデルのダウンロードや実LLMを要する。`uv run pytest -m slow` で実行",
+]

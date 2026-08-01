@@ -1,11 +1,14 @@
 # ベースライン。IPAガイドライン（PDF）＋ LM Studio。
 #
-# Phase 2 で以下を実装したら有効になる:
-#   - embedder: sentence_transformers（multilingual-e5。プレフィックス規約は実装側に閉じ込める）
-#   - indexer: faiss
-#   - chunker: recursive_ja
+# **これが以降のすべての比較の基準点になる**（docs/design/design.md §8 Phase 2）。
+# 手法を追加するときは、この設定から1軸だけ変えた差分設定を `extends: baseline`
+# で作り、`rag report` で対応のある比較を行う。
 #
-# それまでは configs/smoke.yaml で疎通を確認する。
+# 実行前に LM Studio でモデルをロードしておくこと:
+#   uv run rag env -c baseline     # サーバ上のモデルIDを確認
+#   uv run rag eval -c baseline
+#
+# LLM を使わない下限（語彙一致のみ）と比べたい場合は configs/ipa_draft.yaml。
 name: baseline
 corpus: data/corpus/ipa_sme_guideline_v4.0.pdf
 
@@ -27,13 +30,19 @@ index:
   chunker: {type: recursive_ja, chunk_size: 512, overlap: 64}
   embedder:
     type: sentence_transformers
+    # `query: ` / `passage: ` のプレフィックス規約は実装側が持つ。
+    # 設定に露出させると付け忘れが起き、例外は出ないまま精度だけ落ちる。
     model: intfloat/multilingual-e5-base
-  indexer: {type: faiss, metric: cosine}
+  # 全探索（近似なし）。数万チャンク規模では十分速く、近似の取りこぼしが
+  # 手法比較に混入しない。
+  indexer: {type: faiss, metric: cosine, factory: flat}
 
 query:
   query_transform: {type: normalize}
   retriever: {type: dense, top_k: 5}
-  post_retrieval: []
+  post_retrieval:
+    # 出典をチャンク本文に添える。引用の検証と人手検査の両方で効く。
+    - {type: add_section_path}
   prompt:
     type: template
     path: prompts/basic_ja.jinja

@@ -10,8 +10,12 @@ from __future__ import annotations
 # ruff: noqa: F401 - 副作用（レジストリ登録）のための import
 from ragforlocalllm.stages.chunker import fixed as _chunker_fixed
 from ragforlocalllm.stages.embedder import hashing as _embedder_hashing
+from ragforlocalllm.stages.embedder import (
+    sentence_transformers as _embedder_sentence_transformers,
+)
 from ragforlocalllm.stages.generator import extractive as _generator_extractive
 from ragforlocalllm.stages.generator import openai_compat as _generator_openai_compat
+from ragforlocalllm.stages.indexer import faiss_index as _indexer_faiss
 from ragforlocalllm.stages.indexer import numpy_flat as _indexer_numpy_flat
 from ragforlocalllm.stages.loader import pdf as _loader_pdf
 from ragforlocalllm.stages.loader import text as _loader_text
