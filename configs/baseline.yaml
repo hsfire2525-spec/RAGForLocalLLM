@@ -65,7 +65,7 @@ query:
     - {type: abstain_on_phrase}
 
 eval:
-  dataset: data/gold/qa_v1.jsonl
+  dataset: data/gold/qa_v2.jsonl
   metrics:
     - recall@5
     - mrr
